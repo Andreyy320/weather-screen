@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Время и погода</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&display=swap" media="print" onload="this.media='all'">
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
 
@@ -14,7 +14,7 @@
 
   #wrap { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; color: #fff;
     font-family: "Inter", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    text-shadow: 0 2px 18px rgba(0,0,0,0.28); }
+    text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 
   .slide { position: absolute; left: 0; top: 0; width: 1152px; height: 256px;
     opacity: 0; transition: opacity 0.9s ease; }
@@ -25,7 +25,8 @@
     font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; align-items: baseline; }
   #time .colon { position: relative; top: -7px; margin: 0 1px; font-weight: 200; opacity: 0.55; }
   .divider { width: 1px; height: 120px; background: rgba(255,255,255,0.28); margin: 0 34px 0 30px; }
-  .dateBox { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .dateBox { display: flex; flex-direction: column; justify-content: center; }
+.dateBox > * + * { margin-top: 6px; }
   #wday { font-size: 32px; font-weight: 400; line-height: 1.1; white-space: nowrap; opacity: 0.7; }
   #dmon { font-size: 56px; font-weight: 300; line-height: 1.05; white-space: nowrap; letter-spacing: -0.5px; }
 
@@ -49,7 +50,8 @@
   .col { display: flex; flex-direction: column; align-items: center; }
   .col b { font-size: 50px; font-weight: 200; margin-top: 10px; letter-spacing: -1px; }
   .col span { font-size: 22px; font-weight: 300; opacity: 0.75; margin-top: 2px; }
-  .wrow { display: flex; align-items: center; gap: 44px; margin-top: 14px; }
+  .wrow { display: flex; align-items: center; margin-top: 14px; }
+.wrow > * + * { margin-left: 44px; }
   .card svg.big { width: 108px; height: 108px; stroke-width: 1.1; }
   .rows { font-size: 28px; line-height: 1.38; font-weight: 300; }
   .rows div { display: flex; white-space: nowrap; }
@@ -121,12 +123,12 @@
 (function () {
 
   var CITY = 'Тирасполь';
-  var LAT = 46.838224, LON = 29.584158;
+  var LAT = 46.84, LON = 29.58;
   var REFRESH_MIN = 5;
   var STALE_MIN = 45;
   var SLIDE_SEC_DEFAULT = 8;
   var SHOW_ICON = true;
-  var FPS = 30;
+  var FPS = 20;
   var SUN_X = 0.60;   
 
   var SW = 1152, SH = 256;
@@ -392,9 +394,9 @@
     var c = view.cat, i, n;
     particles = []; blobs = []; stars = [];
     if (c === 'snow') {
-      for (i = 0; i < 130; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(1.5, 4), vy: rnd(14, 32), ph: rnd(0, 6.28), sw: rnd(3, 8) });
+      for (i = 0; i < 80; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(1.5, 4), vy: rnd(14, 32), ph: rnd(0, 6.28), sw: rnd(3, 8) });
     } else if (c === 'rain' || c === 'storm') {
-      for (i = 0; i < 180; i++) particles.push({ x: rnd(0, W * 1.1), y: rnd(0, H), len: rnd(12, 24), vy: rnd(230, 380) });
+      for (i = 0; i < 110; i++) particles.push({ x: rnd(0, W * 1.1), y: rnd(0, H), len: rnd(12, 24), vy: rnd(230, 380) });
     }
     if (c !== 'clear') {
       n = (c === 'fog') ? 5 : 8;
@@ -537,6 +539,21 @@
   buildScene();
   requestAnimationFrame(frame);
   loadWeather();
+
+  // Раз в сутки после 04:00 перезагружаем страницу:
+  // подхватывает твои обновления и лечит возможные зависания за много дней работы
+  var bootDay = chisinauNow().getUTCDate();
+  setInterval(function () {
+    var d = chisinauNow();
+   if (d.getUTCDate() !== bootDay && d.getUTCHours() >= 4 && navigator.onLine !== false && weatherFresh()) {
+      location.reload();
+    }
+  }, 60000);
+
+  // Работа страницы без интернета (после перезагрузки контроллера)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
 })();
 </script>
 </body>
