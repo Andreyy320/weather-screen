@@ -20,6 +20,7 @@ function timeout(ms) {
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+    if (new URL(req.url).searchParams.has('chk')) return;
   e.respondWith(
     Promise.race([fetch(req), timeout(4000)]).then(function (res) {
 

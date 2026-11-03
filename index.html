@@ -529,8 +529,12 @@
     if (start === 1 && !weather.ok && !loadCache()) start = 0;
     showSlide(start);
     setInterval(function () {
-      var next = (cur + 1) % 4;
+           var next = (cur + 1) % 4;
       if (next > 0 && !weatherFresh()) next = 0;
+      if (next === 0 && updateReady && navigator.onLine !== false) {
+        location.replace(location.pathname + '?v=' + Date.now());
+        return;
+      }
       showSlide(next);
     }, SLIDE_SEC * 1000);
   }
@@ -546,7 +550,33 @@
       location.reload();
     }
   }, 60000);
-
+  var UPDATE_CHECK_MIN = 1;
+  var updateReady = false;
+  function checkUpdate() {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', location.pathname + '?chk=' + Date.now(), true);
+      xhr.timeout = 15000;
+      xhr.onload = function () {
+        try {
+          if (xhr.status !== 200) return;
+          var lm = xhr.getResponseHeader('Last-Modified');
+          if (!lm) return;
+          var srv = new Date(lm).getTime();
+          var mine = new Date(document.lastModified).getTime();
+          if (isNaN(srv) || isNaN(mine)) return;
+          var seen = localStorage.getItem('ws_upd');
+          if (Math.abs(srv - mine) > 2000 && seen !== lm) {
+            localStorage.setItem('ws_upd', lm);
+            updateReady = true;
+          }
+        } catch (e) {}
+      };
+      xhr.send();
+    } catch (e) {}
+  }
+  setTimeout(checkUpdate, 60000);
+  setInterval(checkUpdate, UPDATE_CHECK_MIN * 60000);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
