@@ -509,7 +509,6 @@
     ctx.globalAlpha = 1;
   }
 
-  // ---------- Слайд-шоу ----------
   var SLIDE_SEC = parseInt(params.sec, 10) || SLIDE_SEC_DEFAULT;
   var slides = [document.getElementById('s1'), document.getElementById('s2')];
   var cards = document.querySelectorAll('.card');
@@ -540,8 +539,6 @@
   requestAnimationFrame(frame);
   loadWeather();
 
-  // Раз в сутки после 04:00 перезагружаем страницу:
-  // подхватывает твои обновления и лечит возможные зависания за много дней работы
   var bootDay = chisinauNow().getUTCDate();
   setInterval(function () {
     var d = chisinauNow();
@@ -550,7 +547,6 @@
     }
   }, 60000);
 
-  // Работа страницы без интернета (после перезагрузки контроллера)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }

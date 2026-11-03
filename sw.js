@@ -22,7 +22,7 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
     Promise.race([fetch(req), timeout(4000)]).then(function (res) {
-      // Ошибочные ответы (404, 5xx) не показываем и не сохраняем: берём прошлую рабочую копию
+
       if (!res || !res.ok) throw new Error('bad response');
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(req, copy); });
