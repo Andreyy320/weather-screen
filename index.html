@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Время и погода</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  #wrap { position: absolute; left: 0; top: 0; right: 0; bottom: 0; color: #fff;
+    font-family: Arial, Helvetica, sans-serif; text-shadow: 0 0.4vmin 1.4vmin rgba(0,0,0,0.5); }
+  .slide { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; opacity: 0; transition: opacity 1s ease; }
+  .slide.on { opacity: 1; }
+  #time { font-size: 30vmin; font-weight: bold; line-height: 1; letter-spacing: 0.01em; }
+  #date { font-size: 7vmin; margin-top: 2vmin; opacity: 0.95; }
+  #city { font-size: 7vmin; opacity: 0.95; }
+  #temp { font-size: 28vmin; font-weight: bold; line-height: 1.05; }
+  #desc { font-size: 8vmin; margin-top: 0.5vmin; }
+  #more { font-size: 4.4vmin; margin-top: 2vmin; opacity: 0.9; max-width: 92%; line-height: 1.3; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="wrap">
+  <div id="left" class="slide on">
+    <div id="time">--:--</div>
+    <div id="date"></div>
+  </div>
+  <div id="right" class="slide">
+    <div id="city">Тирасполь</div>
+    <div id="temp">--</div>
+    <div id="desc">загрузка погоды…</div>
+    <div id="more"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ===== Настройки =====
+  var CITY = 'Тирасполь';
+  var LAT = 46.8403, LON = 29.6433;
+  var REFRESH_MIN = 10;      // как часто обновлять погоду, минут
+  var FPS = 30;              // частота кадров анимации
+
+  // ===== Параметры из адреса для предпросмотра: ?demo=snow|rain|clear|clouds|fog|storm&night=1 =====
+  var params = {};
+  (location.search || '').replace(/^\?/, '').split('&').forEach(function (p) {
+    var kv = p.split('=');
+    if (kv[0]) params[kv[0]] = decodeURIComponent(kv[1] || '');
+  });
+
+  document.getElementById('city').textContent = CITY;
+
+  // ===== Время по Кишинёву (не зависит от часового пояса плеера) =====
+  function lastSunday(y, m) {
+    var d = new Date(Date.UTC(y, m + 1, 0, 1, 0, 0));
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    return d.getTime();
+  }
+  function chisinauNow() {
+    var now = Date.now();
+    var y = new Date(now).getUTCFullYear();
+    var dst = now >= lastSunday(y, 2) && now < lastSunday(y, 9);
+    return new Date(now + (dst ? 3 : 2) * 3600000);
+  }
+  var DAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+  var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  var timeEl = document.getElementById('time');
+  var dateEl = document.getElementById('date');
+  var lastMinute = -1;
+  function tickClock() {
+    var d = chisinauNow();
+    var h = d.getUTCHours(), m = d.getUTCMinutes(), s = d.getUTCSeconds();
+    var colon = (s % 2 === 0) ? ':' : '<span class="colon"></span>';
+    timeEl.innerHTML = pad(h) + (s % 2 === 0 ? ':' : '&nbsp;') + pad(m);
+    if (m !== lastMinute) {
+      lastMinute = m;
+      var wd = DAYS[d.getUTCDay()];
+      dateEl.textContent = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+    }
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // ===== Погода =====
+  var DESC = {
+    0: 'Ясно', 1: 'Преимущественно ясно', 2: 'Переменная облачность', 3: 'Пасмурно',
+    45: 'Туман', 48: 'Изморозь', 51: 'Лёгкая морось', 53: 'Морось', 55: 'Сильная морось',
+    56: 'Ледяная морось', 57: 'Ледяная морось', 61: 'Небольшой дождь', 63: 'Дождь', 65: 'Сильный дождь',
+    66: 'Ледяной дождь', 67: 'Ледяной дождь', 71: 'Небольшой снег', 73: 'Снег', 75: 'Сильный снег',
+    77: 'Снежная крупа', 80: 'Ливень', 81: 'Ливень', 82: 'Сильный ливень',
+    85: 'Снегопад', 86: 'Сильный снегопад', 95: 'Гроза', 96: 'Гроза с градом', 99: 'Гроза с градом'
+  };
+  function categoryOf(code) {
+    if (code === 0 || code === 1) return 'clear';
+    if (code === 2 || code === 3) return 'clouds';
+    if (code === 45 || code === 48) return 'fog';
+    if (code >= 51 && code <= 67) return 'rain';
+    if (code >= 80 && code <= 82) return 'rain';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if (code >= 95) return 'storm';
+    return 'clouds';
+  }
+
+  var weather = { cat: 'clouds', day: true, ok: false };
+  var tempEl = document.getElementById('temp');
+  var descEl = document.getElementById('desc');
+  var moreEl = document.getElementById('more');
+
+  function signed(n) { n = Math.round(n); return (n > 0 ? '+' : '') + n + '°'; }
+
+  function applyWeather(code, temp, feels, hum, wind, isDay, precip, cloud) {
+    // Прогнозная модель иногда ставит код дождя или снега, хотя осадков в эту минуту нет.
+    // Если осадков меньше 0,1 мм, показываем облачность вместо дождя.
+    var c0 = categoryOf(code);
+    if ((c0 === 'rain' || c0 === 'snow') && typeof precip === 'number' && precip < 0.1) {
+      code = (cloud >= 85) ? 3 : (cloud >= 40 ? 2 : (cloud >= 15 ? 1 : 0));
+    }
+    weather.cat = categoryOf(code);
+    weather.day = isDay;
+    weather.ok = true;
+    tempEl.textContent = signed(temp);
+    descEl.textContent = DESC[code] || 'Облачно';
+    moreEl.textContent = 'Ощущается ' + signed(feels) + '  ·  Влажность ' + Math.round(hum) + '%  ·  Ветер ' + Math.round(wind) + ' м/с';
+    buildScene();
+  }
+
+  var DEMO = {
+    clear:  [0, 18, 17, 45, 3],
+    clouds: [3, 9, 7, 74, 4],
+    fog:    [45, 4, 2, 95, 1],
+    rain:   [63, 11, 9, 88, 6],
+    snow:   [73, -3, -7, 82, 5],
+    storm:  [95, 20, 21, 80, 9]
+  };
+
+  function loadWeather() {
+    if (params.demo && DEMO[params.demo]) {
+      var d = DEMO[params.demo];
+      applyWeather(d[0], d[1], d[2], d[3], d[4], params.night !== '1');
+      return;
+    }
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day,precipitation,cloud_cover' +
+      '&wind_speed_unit=ms&timezone=auto';
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = 15000;
+    xhr.onload = function () {
+      try {
+        var c = JSON.parse(xhr.responseText).current;
+        applyWeather(c.weather_code, c.temperature_2m, c.apparent_temperature,
+                     c.relative_humidity_2m, c.wind_speed_10m, c.is_day === 1,
+                     c.precipitation, c.cloud_cover);
+        setTimeout(loadWeather, REFRESH_MIN * 60000);
+      } catch (e) { failed(); }
+    };
+    xhr.onerror = failed;
+    xhr.ontimeout = failed;
+    xhr.send();
+  }
+  function failed() {
+    if (!weather.ok) { tempEl.textContent = '--'; descEl.textContent = 'нет данных о погоде'; moreEl.textContent = ''; }
+    setTimeout(loadWeather, 60000);   // повторить через минуту
+  }
+
+  // ===== Фон и анимация =====
+  var canvas = document.getElementById('bg');
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, M = 1;
+  var particles = [], blobs = [], stars = [];
+  var flash = 0, nextFlash = 0;
+
+  var THEMES = {
+    clear_day:    ['#1566c9', '#74c3ff'],
+    clear_night:  ['#040a1c', '#182860'],
+    clouds_day:   ['#44566f', '#8da1bb'],
+    clouds_night: ['#0b1220', '#283447'],
+    fog:          ['#5a6470', '#a2aab4'],
+    rain:         ['#17253a', '#3b526e'],
+    snow:         ['#2a394f', '#7d91ab'],
+    storm:        ['#0b0d18', '#2a2d48']
+  };
+  function themeKey() {
+    var c = weather.cat;
+    if (c === 'clear') return weather.day ? 'clear_day' : 'clear_night';
+    if (c === 'clouds') return weather.day ? 'clouds_day' : 'clouds_night';
+    return c;
+  }
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  function resize() {
+    W = canvas.width = Math.max(64, window.innerWidth);
+    H = canvas.height = Math.max(32, window.innerHeight);
+    M = Math.min(W, H);
+    buildScene();
+  }
+
+  function buildScene() {
+    var c = weather.cat, i, n;
+    particles = []; blobs = []; stars = [];
+    if (c === 'snow') {
+      n = Math.max(50, Math.min(200, Math.round(W * H / 9000)));
+      for (i = 0; i < n; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.006, 0.016) * M, vy: rnd(0.04, 0.11) * M, ph: rnd(0, 6.28), sw: rnd(0.01, 0.03) * M });
+    } else if (c === 'rain' || c === 'storm') {
+      n = Math.max(70, Math.min(280, Math.round(W * H / 6500)));
+      for (i = 0; i < n; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), len: rnd(0.04, 0.09) * M, vy: rnd(0.9, 1.5) * M });
+    }
+    if (c !== 'clear') {
+      n = (c === 'fog') ? 5 : 7;
+      for (i = 0; i < n; i++) blobs.push({ x: rnd(-0.2, 1.2) * W, y: rnd(0.0, c === 'fog' ? 1.0 : 0.65) * H, r: rnd(0.35, 0.7) * M * (c === 'fog' ? 1.6 : 1), vx: rnd(0.004, 0.012) * M * (i % 2 ? 1 : 0.6) });
+    }
+    if (c === 'clear' && !weather.day) {
+      n = Math.max(40, Math.min(160, Math.round(W * H / 9000)));
+      for (i = 0; i < n; i++) stars.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.002, 0.006) * M, ph: rnd(0, 6.28), sp: rnd(0.5, 2) });
+    }
+    nextFlash = Date.now() + rnd(3000, 7000);
+  }
+
+  var last = 0;
+  function frame(t) {
+    requestAnimationFrame(frame);
+    if (t - last < 1000 / FPS) return;
+    var dt = Math.min(0.1, (t - last) / 1000 || 0.033);
+    last = t;
+
+    var th = THEMES[themeKey()];
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, th[0]); g.addColorStop(1, th[1]);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    var c = weather.cat, i, p, b;
+
+    if (c === 'clear' && weather.day) {
+      var pulse = 1 + 0.04 * Math.sin(t / 1500);
+      var sg = ctx.createRadialGradient(W * 0.85, H * 0.15, 0, W * 0.85, H * 0.15, M * 0.9 * pulse);
+      sg.addColorStop(0, 'rgba(255,244,190,0.95)');
+      sg.addColorStop(0.15, 'rgba(255,232,150,0.55)');
+      sg.addColorStop(1, 'rgba(255,232,150,0)');
+      ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+    }
+
+    for (i = 0; i < stars.length; i++) {
+      p = stars[i];
+      ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(t / 1000 * p.sp + p.ph));
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.8, p.r), 0, 6.283); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (i = 0; i < blobs.length; i++) {
+      b = blobs[i];
+      b.x += b.vx * dt * 60 * 0.3;
+      if (b.x - b.r > W) b.x = -b.r;
+      var cg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+      var col = (c === 'storm') ? '20,22,40' : (c === 'fog' ? '230,235,240' : (weather.day ? '255,255,255' : '150,165,190'));
+      var a = (c === 'fog') ? 0.28 : (c === 'storm' ? 0.55 : 0.22);
+      cg.addColorStop(0, 'rgba(' + col + ',' + a + ')');
+      cg.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = cg;
+      ctx.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
+    }
+
+    if (c === 'snow') {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        p.y += p.vy * dt; p.ph += dt;
+        var x = p.x + Math.sin(p.ph) * p.sw;
+        if (p.y - p.r > H) { p.y = -p.r; p.x = rnd(0, W); }
+        ctx.beginPath(); ctx.arc(x, p.y, p.r, 0, 6.283); ctx.fill();
+      }
+    } else if (c === 'rain' || c === 'storm') {
+      ctx.strokeStyle = 'rgba(190,215,255,0.65)';
+      ctx.lineWidth = Math.max(1, M * 0.004);
+      ctx.beginPath();
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        p.y += p.vy * dt; p.x -= p.vy * dt * 0.18;
+        if (p.y - p.len > H) { p.y = -p.len; p.x = rnd(0, W * 1.2); }
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.len * 0.18, p.y - p.len);
+      }
+      ctx.stroke();
+    }
+
+    if (c === 'storm') {
+      var nowMs = Date.now();
+      if (nowMs > nextFlash) { flash = 1; nextFlash = nowMs + rnd(4000, 9000); }
+      if (flash > 0.02) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (flash * 0.6) + ')';
+        ctx.fillRect(0, 0, W, H);
+        flash *= 0.86;
+      }
+    }
+  }
+
+  // ===== Слайд-шоу: часы -> погода -> часы ... =====
+  var SLIDE_SEC = parseInt(params.sec, 10) || 10;    // сколько секунд показывать каждый экран
+  var slides = [document.getElementById('left'), document.getElementById('right')];
+  var cur = 0;
+  function showSlide(i) {
+    cur = i;
+    for (var j = 0; j < slides.length; j++) slides[j].className = (j === i) ? 'slide on' : 'slide';
+  }
+  if (params.slide === 'time') { showSlide(0); }
+  else if (params.slide === 'weather') { showSlide(1); }
+  else {
+    showSlide(0);
+    setInterval(function () {
+      var next = (cur + 1) % 2;
+      if (next === 1 && !weather.ok) next = 0;       // нет погоды: остаёмся на часах
+      showSlide(next);
+    }, SLIDE_SEC * 1000);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+  loadWeather();
+})();
+</script>
+</body>
+</html>
