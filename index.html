@@ -6,54 +6,152 @@
 <title>Время и погода</title>
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
-  canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-  #wrap { position: absolute; left: 0; top: 0; right: 0; bottom: 0; color: #fff;
-    font-family: Arial, Helvetica, sans-serif; text-shadow: 0 0.4vmin 1.4vmin rgba(0,0,0,0.5); }
-  .slide { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; opacity: 0; transition: opacity 1s ease; }
+
+  /* Фиксированная сцена 1152x256, масштабируется под окно скриптом */
+  #stage { position: absolute; left: 0; top: 0; width: 1152px; height: 256px;
+    transform-origin: 0 0; overflow: hidden; background: #000; }
+  canvas { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; }
+
+  #wrap { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; color: #fff;
+    font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    text-shadow: 0 3px 14px rgba(0,0,0,0.45); }
+
+  .slide { position: absolute; left: 0; top: 0; width: 1152px; height: 256px;
+    display: flex; flex-direction: row; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.8s ease; }
   .slide.on { opacity: 1; }
-  #time { font-size: 30vmin; font-weight: bold; line-height: 1; letter-spacing: 0.01em; }
-  #date { font-size: 7vmin; margin-top: 2vmin; opacity: 0.95; }
-  #city { font-size: 7vmin; opacity: 0.95; }
-  #temp { font-size: 28vmin; font-weight: bold; line-height: 1.05; }
-  #desc { font-size: 8vmin; margin-top: 0.5vmin; }
-  #more { font-size: 4.4vmin; margin-top: 2vmin; opacity: 0.9; max-width: 92%; line-height: 1.3; }
+
+  .divider { width: 3px; height: 150px; background: rgba(255,255,255,0.35); border-radius: 2px; margin: 0 36px; }
+
+  /* ---- Слайд 1: время и дата ---- */
+  #time { font-size: 160px; font-weight: bold; line-height: 1; letter-spacing: 2px;
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #time .colon { display: inline-block; position: relative; top: -10px; margin: 0 2px; }
+  .dateBox { display: flex; flex-direction: column; justify-content: center; }
+  #wday { font-size: 62px; font-weight: bold; line-height: 1.1; }
+  #dmon { font-size: 58px; line-height: 1.15; opacity: 0.92; }
+
+  /* ---- Слайд 2: погода + карточки ---- */
+  #city { position: absolute; left: 40px; top: 10px; font-size: 32px; opacity: 0.95; }
+  #temp { position: absolute; left: 40px; top: 54px; font-size: 115px; font-weight: bold; line-height: 1; white-space: nowrap; }
+  #icon { position: absolute; left: 340px; top: 82px; font-size: 100px; line-height: 1; }
+  #range { position: absolute; left: 40px; bottom: 58px; font-size: 32px; opacity: 0.92; }
+  #desc { position: absolute; left: 40px; bottom: 12px; font-size: 38px; font-weight: bold; white-space: nowrap; }
+  .card { position: absolute; left: 580px; top: 16px; width: 540px; height: 224px; box-sizing: border-box;
+    padding: 14px 24px; border-radius: 18px; background: rgba(255,255,255,0.18);
+    opacity: 0; transition: opacity 0.6s ease; }
+  .card.on { opacity: 1; }
+  .card h3 { margin: 0; font-size: 32px; font-weight: normal; }
+  .card svg { width: 54px; height: 54px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .cols { display: flex; justify-content: space-around; margin-top: 14px; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col b { font-size: 46px; font-weight: normal; margin-top: 6px; }
+  .col span { font-size: 26px; opacity: 0.9; }
+  .wrow { display: flex; align-items: center; gap: 40px; margin-top: 8px; }
+  .card svg.big { width: 120px; height: 120px; stroke-width: 1.3; }
+  .rows { font-size: 29px; line-height: 1.3; }
+  .rows div { display: flex; white-space: nowrap; }
+  .rows span { width: 190px; opacity: 0.9; }
+  .rows b { font-weight: normal; }
+  .card #sunsvg { width: 100%; height: auto; stroke-width: 2; }
 </style>
 </head>
 <body>
-<canvas id="bg"></canvas>
-<div id="wrap">
-  <div id="left" class="slide on">
-    <div id="time">--:--</div>
-    <div id="date"></div>
-  </div>
-  <div id="right" class="slide">
-    <div id="city">Тирасполь</div>
-    <div id="temp">--</div>
-    <div id="desc">загрузка погоды…</div>
-    <div id="more"></div>
+<div id="stage">
+  <canvas id="bg" width="1152" height="256"></canvas>
+  <div id="wrap">
+
+    <!-- Слайд 1 -->
+    <div id="s1" class="slide on">
+      <div id="time">--:--</div>
+      <div class="divider"></div>
+      <div class="dateBox">
+        <div id="wday">&nbsp;</div>
+        <div id="dmon">&nbsp;</div>
+      </div>
+    </div>
+
+    <!-- Слайд 2 -->
+    <div id="s2" class="slide">
+      <div id="city">Тирасполь</div>
+      <div id="temp">--</div>
+      <div id="icon">⛅</div>
+      <div id="range">--</div>
+      <div id="desc">загрузка…</div>
+
+      <div class="card">
+        <h3>Комфорт</h3>
+        <div class="cols">
+          <div class="col"><svg viewBox="0 0 24 24"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0013 0C18.5 10 12 2.5 12 2.5z"/></svg><b id="hum">--</b><span>Влажность</span></div>
+          <div class="col"><svg viewBox="0 0 24 24"><path d="M10 4a2 2 0 014 0v9.3a4 4 0 11-4 0z"/></svg><b id="feels">--</b><span>Ощущается</span></div>
+          <div class="col"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><b id="uv">--</b><span>УФ-индекс</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Ветер и давление</h3>
+        <div class="wrow">
+          <svg class="big" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 10-3-3M3 12h16a3 3 0 11-3 3M3 16h8a3 3 0 11-3 3"/></svg>
+          <div class="rows">
+            <div><span>Направление</span><b id="dir">--</b></div>
+            <div><span>Сила ветра</span><b id="beau">--</b></div>
+            <div><span>Скорость</span><b id="wind">--</b></div>
+            <div><span>Давление</span><b id="pres">--</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Восход и закат</h3>
+        <svg id="sunsvg" viewBox="0 0 500 160">
+          <line x1="20" y1="120" x2="480" y2="120"/>
+          <path d="M60 120A190 95 0 0 1 440 120" stroke-width="1.5" stroke-dasharray="5 6"/>
+          <circle id="sun" cx="60" cy="120" r="10" fill="#fff" stroke="none"/>
+          <text id="rise" x="20" y="152" fill="#fff" stroke="none" font-size="26">Восход --:--</text>
+          <text id="set" x="480" y="152" text-anchor="end" fill="#fff" stroke="none" font-size="26">Закат --:--</text>
+        </svg>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
 (function () {
-  // ===== Настройки =====
+  // ===================== НАСТРОЙКИ =====================
   var CITY = 'Тирасполь';
   var LAT = 46.8403, LON = 29.6433;
-  var REFRESH_MIN = 10;      // как часто обновлять погоду, минут
-  var FPS = 30;              // частота кадров анимации
+  var REFRESH_MIN = 10;     // как часто обновлять погоду, минут
+  var SLIDE_SEC_DEFAULT = 8; // сколько секунд показывать каждый слайд
+  var SHOW_ICON = true;     // false = убрать значок погоды (если у плеера не рисуются эмодзи)
+  var FPS = 30;
+  // ======================================================
 
-  // ===== Параметры из адреса для предпросмотра: ?demo=snow|rain|clear|clouds|fog|storm&night=1 =====
+  var SW = 1152, SH = 256;
+
+  // Параметры из адреса: ?demo=snow|rain|clear|clouds|fog|storm &night=1 &slide=time|weather &sec=8
   var params = {};
   (location.search || '').replace(/^\?/, '').split('&').forEach(function (p) {
     var kv = p.split('=');
     if (kv[0]) params[kv[0]] = decodeURIComponent(kv[1] || '');
   });
 
-  document.getElementById('city').textContent = CITY;
+  // ---------- Масштаб сцены под размер окна ----------
+  var stage = document.getElementById('stage');
+  function fit() {
+    var w = window.innerWidth || SW, h = window.innerHeight || SH;
+    var s = Math.min(w / SW, h / SH);
+    stage.style.transform = 'scale(' + s + ')';
+    stage.style.left = Math.round((w - SW * s) / 2) + 'px';
+    stage.style.top = Math.round((h - SH * s) / 2) + 'px';
+  }
+  window.addEventListener('resize', fit);
+  fit();
 
-  // ===== Время по Кишинёву (не зависит от часового пояса плеера) =====
+  document.getElementById('city').textContent = CITY;
+  if (!SHOW_ICON) document.getElementById('icon').style.display = 'none';
+
+  // ---------- Время по Кишинёву (не зависит от часов плеера) ----------
   function lastSunday(y, m) {
     var d = new Date(Date.UTC(y, m + 1, 0, 1, 0, 0));
     d.setUTCDate(d.getUTCDate() - d.getUTCDay());
@@ -65,28 +163,35 @@
     var dst = now >= lastSunday(y, 2) && now < lastSunday(y, 9);
     return new Date(now + (dst ? 3 : 2) * 3600000);
   }
-  var DAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+  var DAYS = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
   var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
   var timeEl = document.getElementById('time');
-  var dateEl = document.getElementById('date');
+  var wdayEl = document.getElementById('wday');
+  var dmonEl = document.getElementById('dmon');
   var lastMinute = -1;
+  var lastSecond = -1;
   function tickClock() {
     var d = chisinauNow();
-    var h = d.getUTCHours(), m = d.getUTCMinutes(), s = d.getUTCSeconds();
-    var colon = (s % 2 === 0) ? ':' : '<span class="colon"></span>';
-    timeEl.innerHTML = pad(h) + (s % 2 === 0 ? ':' : '&nbsp;') + pad(m);
+    var m = d.getUTCMinutes(), s = d.getUTCSeconds();
+    if (s !== lastSecond) {
+      lastSecond = s;
+      timeEl.innerHTML = pad(d.getUTCHours()) +
+        '<span class="colon">:</span>' + pad(m) +
+        '<span class="colon">:</span>' + pad(s);
+    }
     if (m !== lastMinute) {
       lastMinute = m;
-      var wd = DAYS[d.getUTCDay()];
-      dateEl.textContent = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+      updateSun();
+      wdayEl.textContent = DAYS[d.getUTCDay()];
+      dmonEl.textContent = d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
     }
   }
-  setInterval(tickClock, 1000);
+  setInterval(tickClock, 250);
   tickClock();
 
-  // ===== Погода =====
+  // ---------- Погода ----------
   var DESC = {
     0: 'Ясно', 1: 'Преимущественно ясно', 2: 'Переменная облачность', 3: 'Пасмурно',
     45: 'Туман', 48: 'Изморозь', 51: 'Лёгкая морось', 53: 'Морось', 55: 'Сильная морось',
@@ -105,17 +210,38 @@
     if (code >= 95) return 'storm';
     return 'clouds';
   }
+  function iconOf(code, isDay) {
+    var c = categoryOf(code);
+    if (c === 'clear') return isDay ? (code === 0 ? '☀️' : '🌤️') : '🌙';
+    if (c === 'clouds') return code === 2 ? (isDay ? '⛅' : '☁️') : '☁️';
+    if (c === 'fog') return '🌫️';
+    if (c === 'rain') return '🌧️';
+    if (c === 'snow') return (code === 71 || code === 85) ? '🌨️' : '❄️';
+    if (c === 'storm') return '⛈️';
+    return '⛅';
+  }
 
   var weather = { cat: 'clouds', day: true, ok: false };
-  var tempEl = document.getElementById('temp');
-  var descEl = document.getElementById('desc');
-  var moreEl = document.getElementById('more');
-
+  var el = {};
+  ['temp','desc','feels','hum','wind','icon','uv','dir','beau','pres','range','rise','set'].forEach(function (k) { el[k] = document.getElementById(k); });
+  var sunEl = document.getElementById('sun');
+  var DIRS = ['С','ССВ','СВ','ВСВ','В','ВЮВ','ЮВ','ЮЮВ','Ю','ЮЮЗ','ЮЗ','ЗЮЗ','З','ЗСЗ','СЗ','ССЗ'];
+  var BF = [0.3, 1.6, 3.4, 5.5, 8, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7];
+  function beaufort(v) { var n = 0; while (n < BF.length && v >= BF[n]) n++; return n; }
+  function toMin(t) { var a = t.split(':'); return (+a[0]) * 60 + (+a[1]); }
+  function updateSun() {
+    if (!weather || weather.sr == null) return;
+    var d = chisinauNow(), n = d.getUTCHours() * 60 + d.getUTCMinutes();
+    var p = (n - weather.sr) / (weather.ss - weather.sr);
+    var th = Math.PI * (1 - Math.max(0, Math.min(1, p)));
+    sunEl.setAttribute('cx', 250 + 190 * Math.cos(th));
+    sunEl.setAttribute('cy', 120 - 95 * Math.sin(th));
+    sunEl.style.opacity = (p < 0 || p > 1) ? 0.35 : 1;
+  }
   function signed(n) { n = Math.round(n); return (n > 0 ? '+' : '') + n + '°'; }
 
-  function applyWeather(code, temp, feels, hum, wind, isDay, precip, cloud) {
-    // Прогнозная модель иногда ставит код дождя или снега, хотя осадков в эту минуту нет.
-    // Если осадков меньше 0,1 мм, показываем облачность вместо дождя.
+  function applyWeather(code, temp, feels, hum, wind, isDay, precip, cloud, uv, pres, wdir, tmax, tmin, sr, ss) {
+    // Если модель ставит дождь/снег, а осадков сейчас нет, показываем облачность
     var c0 = categoryOf(code);
     if ((c0 === 'rain' || c0 === 'snow') && typeof precip === 'number' && precip < 0.1) {
       code = (cloud >= 85) ? 3 : (cloud >= 40 ? 2 : (cloud >= 15 ? 1 : 0));
@@ -123,10 +249,35 @@
     weather.cat = categoryOf(code);
     weather.day = isDay;
     weather.ok = true;
-    tempEl.textContent = signed(temp);
-    descEl.textContent = DESC[code] || 'Облачно';
-    moreEl.textContent = 'Ощущается ' + signed(feels) + '  ·  Влажность ' + Math.round(hum) + '%  ·  Ветер ' + Math.round(wind) + ' м/с';
+    el.temp.textContent = signed(temp);
+    el.desc.textContent = DESC[code] || 'Облачно';
+    el.feels.textContent = signed(feels);
+    el.hum.textContent = Math.round(hum) + '%';
+    el.wind.textContent = Math.round(wind) + ' м/с';
+    el.icon.textContent = iconOf(code, isDay);
+    el.uv.textContent = Math.round(uv);
+    el.dir.textContent = DIRS[Math.round(wdir / 22.5) % 16];
+    el.beau.textContent = beaufort(wind) + ' балла';
+    el.pres.textContent = Math.round(pres * 0.750062) + ' мм рт. ст.';
+    el.range.textContent = signed(tmin) + ' / ' + signed(tmax);
+    el.rise.textContent = 'Восход ' + sr;
+    el.set.textContent = 'Закат ' + ss;
+    weather.sr = toMin(sr); weather.ss = toMin(ss);
+    updateSun();
     buildScene();
+  }
+
+  // Кэш погоды: если страница перезапускается плеером, данные сразу на месте
+  var CACHE_KEY = 'ws_weather_v2';
+  function saveCache(arr) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), v: arr })); } catch (e) {}
+  }
+  function loadCache() {
+    try {
+      var o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (o && o.v && Date.now() - o.ts < 60 * 60000) return o;
+    } catch (e) {}
+    return null;
   }
 
   var DEMO = {
@@ -141,21 +292,33 @@
   function loadWeather() {
     if (params.demo && DEMO[params.demo]) {
       var d = DEMO[params.demo];
-      applyWeather(d[0], d[1], d[2], d[3], d[4], params.night !== '1');
+      applyWeather(d[0], d[1], d[2], d[3], d[4], params.night !== '1', undefined, undefined, 3, 1021, 20, d[1] + 2, d[1] - 3, '06:47', '16:43');
       return;
     }
+    var cached = loadCache();
+    if (cached && !weather.ok) {
+      applyWeather.apply(null, cached.v);
+      if (Date.now() - cached.ts < REFRESH_MIN * 60000) {
+        setTimeout(loadWeather, REFRESH_MIN * 60000 - (Date.now() - cached.ts));
+        return;
+      }
+    }
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
-      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day,precipitation,cloud_cover' +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day,precipitation,cloud_cover,uv_index,pressure_msl,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset' +
       '&wind_speed_unit=ms&timezone=auto';
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url, true);
     xhr.timeout = 15000;
     xhr.onload = function () {
       try {
-        var c = JSON.parse(xhr.responseText).current;
-        applyWeather(c.weather_code, c.temperature_2m, c.apparent_temperature,
-                     c.relative_humidity_2m, c.wind_speed_10m, c.is_day === 1,
-                     c.precipitation, c.cloud_cover);
+        var j = JSON.parse(xhr.responseText), c = j.current, dl = j.daily;
+        var arr = [c.weather_code, c.temperature_2m, c.apparent_temperature,
+                   c.relative_humidity_2m, c.wind_speed_10m, c.is_day === 1,
+                   c.precipitation, c.cloud_cover, c.uv_index, c.pressure_msl, c.wind_direction_10m,
+                   dl.temperature_2m_max[0], dl.temperature_2m_min[0],
+                   dl.sunrise[0].slice(11, 16), dl.sunset[0].slice(11, 16)];
+        applyWeather.apply(null, arr);
+        saveCache(arr);
         setTimeout(loadWeather, REFRESH_MIN * 60000);
       } catch (e) { failed(); }
     };
@@ -164,14 +327,17 @@
     xhr.send();
   }
   function failed() {
-    if (!weather.ok) { tempEl.textContent = '--'; descEl.textContent = 'нет данных о погоде'; moreEl.textContent = ''; }
-    setTimeout(loadWeather, 60000);   // повторить через минуту
+    if (!weather.ok) {
+      el.temp.textContent = '--'; el.desc.textContent = 'нет данных о погоде';
+      el.feels.textContent = '--'; el.hum.textContent = '--'; el.wind.textContent = '--';
+    }
+    setTimeout(loadWeather, 60000);
   }
 
-  // ===== Фон и анимация =====
+  // ---------- Фон и анимация ----------
   var canvas = document.getElementById('bg');
   var ctx = canvas.getContext('2d');
-  var W = 0, H = 0, M = 1;
+  var W = SW, H = SH, M = SH;
   var particles = [], blobs = [], stars = [];
   var flash = 0, nextFlash = 0;
 
@@ -191,33 +357,23 @@
     if (c === 'clouds') return weather.day ? 'clouds_day' : 'clouds_night';
     return c;
   }
-
   function rnd(a, b) { return a + Math.random() * (b - a); }
-
-  function resize() {
-    W = canvas.width = Math.max(64, window.innerWidth);
-    H = canvas.height = Math.max(32, window.innerHeight);
-    M = Math.min(W, H);
-    buildScene();
-  }
 
   function buildScene() {
     var c = weather.cat, i, n;
     particles = []; blobs = []; stars = [];
     if (c === 'snow') {
-      n = Math.max(50, Math.min(200, Math.round(W * H / 9000)));
-      for (i = 0; i < n; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.006, 0.016) * M, vy: rnd(0.04, 0.11) * M, ph: rnd(0, 6.28), sw: rnd(0.01, 0.03) * M });
+      for (i = 0; i < 130; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(1.5, 4), vy: rnd(14, 32), ph: rnd(0, 6.28), sw: rnd(3, 8) });
     } else if (c === 'rain' || c === 'storm') {
-      n = Math.max(70, Math.min(280, Math.round(W * H / 6500)));
-      for (i = 0; i < n; i++) particles.push({ x: rnd(0, W), y: rnd(0, H), len: rnd(0.04, 0.09) * M, vy: rnd(0.9, 1.5) * M });
+      for (i = 0; i < 180; i++) particles.push({ x: rnd(0, W * 1.1), y: rnd(0, H), len: rnd(12, 24), vy: rnd(230, 380) });
     }
     if (c !== 'clear') {
-      n = (c === 'fog') ? 5 : 7;
-      for (i = 0; i < n; i++) blobs.push({ x: rnd(-0.2, 1.2) * W, y: rnd(0.0, c === 'fog' ? 1.0 : 0.65) * H, r: rnd(0.35, 0.7) * M * (c === 'fog' ? 1.6 : 1), vx: rnd(0.004, 0.012) * M * (i % 2 ? 1 : 0.6) });
+      n = (c === 'fog') ? 5 : 8;
+      for (i = 0; i < n; i++) blobs.push({ x: rnd(-0.1, 1.1) * W, y: rnd(0, c === 'fog' ? 1.0 : 0.7) * H,
+        r: rnd(110, 220) * (c === 'fog' ? 1.5 : 1), vx: rnd(1, 3) * (i % 2 ? 1 : 0.6) });
     }
     if (c === 'clear' && !weather.day) {
-      n = Math.max(40, Math.min(160, Math.round(W * H / 9000)));
-      for (i = 0; i < n; i++) stars.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.002, 0.006) * M, ph: rnd(0, 6.28), sp: rnd(0.5, 2) });
+      for (i = 0; i < 90; i++) stars.push({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.6, 1.8), ph: rnd(0, 6.28), sp: rnd(0.5, 2) });
     }
     nextFlash = Date.now() + rnd(3000, 7000);
   }
@@ -239,9 +395,9 @@
 
     if (c === 'clear' && weather.day) {
       var pulse = 1 + 0.04 * Math.sin(t / 1500);
-      var sg = ctx.createRadialGradient(W * 0.85, H * 0.15, 0, W * 0.85, H * 0.15, M * 0.9 * pulse);
+      var sg = ctx.createRadialGradient(W * 0.9, 20, 0, W * 0.9, 20, 420 * pulse);
       sg.addColorStop(0, 'rgba(255,244,190,0.95)');
-      sg.addColorStop(0.15, 'rgba(255,232,150,0.55)');
+      sg.addColorStop(0.15, 'rgba(255,232,150,0.5)');
       sg.addColorStop(1, 'rgba(255,232,150,0)');
       ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
     }
@@ -250,13 +406,13 @@
       p = stars[i];
       ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(t / 1000 * p.sp + p.ph));
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.8, p.r), 0, 6.283); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
     for (i = 0; i < blobs.length; i++) {
       b = blobs[i];
-      b.x += b.vx * dt * 60 * 0.3;
+      b.x += b.vx * dt * 6;
       if (b.x - b.r > W) b.x = -b.r;
       var cg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
       var col = (c === 'storm') ? '20,22,40' : (c === 'fog' ? '230,235,240' : (weather.day ? '255,255,255' : '150,165,190'));
@@ -278,7 +434,7 @@
       }
     } else if (c === 'rain' || c === 'storm') {
       ctx.strokeStyle = 'rgba(190,215,255,0.65)';
-      ctx.lineWidth = Math.max(1, M * 0.004);
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (i = 0; i < particles.length; i++) {
         p = particles[i];
@@ -301,27 +457,35 @@
     }
   }
 
-  // ===== Слайд-шоу: часы -> погода -> часы ... =====
-  var SLIDE_SEC = parseInt(params.sec, 10) || 10;    // сколько секунд показывать каждый экран
-  var slides = [document.getElementById('left'), document.getElementById('right')];
+  // ---------- Слайд-шоу: время -> погода -> время ... ----------
+  var SLIDE_SEC = parseInt(params.sec, 10) || SLIDE_SEC_DEFAULT;
+  var slides = [document.getElementById('s1'), document.getElementById('s2')];
+  var cards = document.querySelectorAll('.card');
   var cur = 0;
   function showSlide(i) {
     cur = i;
-    for (var j = 0; j < slides.length; j++) slides[j].className = (j === i) ? 'slide on' : 'slide';
+    slides[0].className = (i === 0) ? 'slide on' : 'slide';
+    slides[1].className = (i > 0) ? 'slide on' : 'slide';
+    for (var j = 0; j < cards.length; j++) cards[j].className = (j === i - 1) ? 'card on' : 'card';
+    try { localStorage.setItem('ws_last_slide', String(i)); } catch (e) {}
   }
+
   if (params.slide === 'time') { showSlide(0); }
-  else if (params.slide === 'weather') { showSlide(1); }
+  else if (params.slide === 'weather') { showSlide(1 + (parseInt(params.card, 10) || 0)); }
   else {
-    showSlide(0);
+    // Если плеер перезапускает страницу, начинаем с того слайда, который не показывали последним
+    var start = 0;
+    try { start = localStorage.getItem('ws_last_slide') === '0' ? 1 : 0; } catch (e) {}
+    if (start === 1 && !weather.ok && !loadCache()) start = 0;
+    showSlide(start);
     setInterval(function () {
-      var next = (cur + 1) % 2;
-      if (next === 1 && !weather.ok) next = 0;       // нет погоды: остаёмся на часах
+      var next = (cur + 1) % 4;
+      if (next > 0 && !weather.ok) next = 0;   // нет погоды: остаёмся на времени
       showSlide(next);
     }, SLIDE_SEC * 1000);
   }
 
-  window.addEventListener('resize', resize);
-  resize();
+  buildScene();
   requestAnimationFrame(frame);
   loadWeather();
 })();
