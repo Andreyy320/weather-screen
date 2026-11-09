@@ -85,8 +85,13 @@
   .row svg { width: 40px; height: 32px; margin-right: 18px; flex: none; }
   .row .lo { width: 48px; text-align: right; font-size: 20px; font-weight: 500; opacity: 0.55; font-variant-numeric: tabular-nums; }
   .row .hi { width: 48px; text-align: left; font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(0,0,0,0.22); margin: 0 12px; position: relative; overflow: hidden; }
-  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #64d2ff, #8ee08e 45%, #ffd60a 75%, #ff9f0a); }
+
+  /* полоска температуры в стиле Apple Weather:
+     тёмная дорожка, поверх неё «таблетка» диапазона с цветом по реальной температуре,
+     белая точка = текущая температура (только в строке «Сегодня») */
+  .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(8,28,70,0.34); margin: 0 12px; position: relative; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.08); }
+  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; box-shadow: 0 0 5px rgba(255,255,255,0.18); }
+  .bar u { position: absolute; top: 50%; width: 6px; height: 6px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; border: 2px solid rgba(8,28,70,0.55); box-sizing: content-box; box-shadow: 0 1px 3px rgba(0,0,0,0.3); text-decoration: none; }
 
   #tiles { position: absolute; left: 588px; top: 0; width: 550px; height: 256px; }
   .tile { position: absolute; width: 176px; height: 107px; padding: 13px 16px 12px; border-radius: 22px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -319,17 +324,18 @@
       '<circle cx="14" cy="64" r="14"/><circle cx="46" cy="62" r="16"/>' +
       '<circle cx="78" cy="64" r="15"/></g>';
   }
- function sunG(cx, cy, k) {
-  var rays = '', i, a, co, si;
-  for (i = 0; i < 12; i++) {
-    a = i * 30 * Math.PI / 180; co = Math.cos(a); si = Math.sin(a);
-    rays += '<line x1="' + (cx + co * 47 * k).toFixed(1) + '" y1="' + (cy + si * 47 * k).toFixed(1) +
-            '" x2="' + (cx + co * 64 * k).toFixed(1) + '" y2="' + (cy + si * 64 * k).toFixed(1) + '"/>';
+  /* солнце с лучами */
+  function sunG(cx, cy, k) {
+    var rays = '', i, a, co, si;
+    for (i = 0; i < 12; i++) {
+      a = i * 30 * Math.PI / 180; co = Math.cos(a); si = Math.sin(a);
+      rays += '<line x1="' + (cx + co * 47 * k).toFixed(1) + '" y1="' + (cy + si * 47 * k).toFixed(1) +
+              '" x2="' + (cx + co * 64 * k).toFixed(1) + '" y2="' + (cy + si * 64 * k).toFixed(1) + '"/>';
+    }
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (80 * k) + '" fill="url(#gGlow)"/>' +
+      '<g stroke="#ffd60a" stroke-width="' + (8 * k) + '" stroke-linecap="round" opacity="0.95">' + rays + '</g>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (34 * k) + '" fill="url(#gSun)"/>';
   }
-  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (80 * k) + '" fill="url(#gGlow)"/>' +
-    '<g stroke="#ffd60a" stroke-width="' + (8 * k) + '" stroke-linecap="round" opacity="0.95">' + rays + '</g>' +
-    '<circle cx="' + cx + '" cy="' + cy + '" r="' + (34 * k) + '" fill="url(#gSun)"/>';
-}
   function moonG(cx, cy, k) {
     return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (80 * k) + '" fill="url(#gGlowM)"/>' +
       '<g transform="translate(' + cx + ' ' + cy + ') scale(' + k + ')"><g mask="url(#mMoon)"><circle cx="0" cy="0" r="42" fill="url(#gMoonI)"/>' +
@@ -383,7 +389,7 @@
     return wsvg(cloud(14, 0, 0.95, true) + cloud(58, 34, 1.1, false) + fogLines(114));
   }
 
-  var weather = { cat: 'clouds', day: true, ok: false, code: 3, cloud: 30, wind: 3, wdir: 0, sr: '07:00', ss: '17:00', fogF: false };
+  var weather = { cat: 'clouds', day: true, ok: false, code: 3, cloud: 30, wind: 3, wdir: 0, sr: '07:00', ss: '17:00', fogF: false, temp: null };
   var dataTs = 0;
   function weatherFresh() { return weather.ok && (!!params.demo || Date.now() - dataTs < STALE_MIN * 60000); }
 
@@ -400,17 +406,61 @@
     }
     $('hrs').innerHTML = h;
   }
+
+  /* ---------- цвет полоски по реальной температуре (как в Apple Weather) ---------- */
+  var TCOL = [
+    [-15, [96, 124, 255]],  /* сильный мороз  */
+    [-5,  [72, 168, 255]],  /* мороз          */
+    [2,   [100, 210, 255]], /* около нуля     */
+    [9,   [132, 226, 160]], /* прохладно      */
+    [15,  [236, 226, 72]],  /* тепло          */
+    [22,  [255, 178, 24]],  /* жарко          */
+    [30,  [255, 112, 40]],  /* очень жарко    */
+    [38,  [255, 69, 58]]    /* зной           */
+  ];
+  function tcol(t) {
+    var i, a, b, f;
+    if (t <= TCOL[0][0]) return TCOL[0][1];
+    if (t >= TCOL[TCOL.length - 1][0]) return TCOL[TCOL.length - 1][1];
+    for (i = 0; i < TCOL.length - 1; i++) {
+      a = TCOL[i]; b = TCOL[i + 1];
+      if (t >= a[0] && t <= b[0]) {
+        f = (t - a[0]) / (b[0] - a[0]);
+        return [a[1][0] + (b[1][0] - a[1][0]) * f, a[1][1] + (b[1][1] - a[1][1]) * f, a[1][2] + (b[1][2] - a[1][2]) * f];
+      }
+    }
+    return TCOL[0][1];
+  }
+  function rgbs(c) { return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
+  /* градиент таблетки: цвета берутся от температуры внутри диапазона [lo..hi] */
+  function barGrad(lo, hi) {
+    var span = Math.max(0.01, hi - lo), st = [rgbs(tcol(lo)) + ' 0%'], i, t;
+    for (i = 0; i < TCOL.length; i++) {
+      t = TCOL[i][0];
+      if (t > lo && t < hi) st.push(rgbs(TCOL[i][1]) + ' ' + ((t - lo) / span * 100).toFixed(1) + '%');
+    }
+    st.push(rgbs(tcol(hi)) + ' 100%');
+    return 'linear-gradient(90deg,' + st.join(',') + ')';
+  }
+
   /* dy[k] = ['YYYY-MM-DD', code, tmax, tmin, fog, cloud] */
   function renderDays(dy) {
-    var mn = 99, mx = -99, k, h = '', p, label, a, b, span;
+    var mn = 99, mx = -99, k, h = '', p, label, a, b, w, span, dot, fr;
     for (k = 0; k < dy.length; k++) { if (dy[k][3] < mn) mn = dy[k][3]; if (dy[k][2] > mx) mx = dy[k][2]; }
     span = Math.max(1, mx - mn);
     for (k = 0; k < dy.length; k++) {
       p = dy[k][0].split('-');
       label = (k === 0) ? 'Сегодня' : DAYS_SHORT[new Date(+p[0], +p[1] - 1, +p[2]).getDay()];
       a = (dy[k][3] - mn) / span * 100; b = (dy[k][2] - mn) / span * 100;
+      w = Math.max(8, b - a); if (a + w > 100) a = 100 - w;
+      /* белая точка «сейчас» — только у сегодняшнего дня, внутри таблетки */
+      dot = '';
+      if (k === 0 && typeof weather.temp === 'number') {
+        fr = Math.max(0, Math.min(1, (weather.temp - dy[k][3]) / Math.max(0.5, dy[k][2] - dy[k][3])));
+        dot = '<u style="left:' + (a + w * fr).toFixed(1) + '%"></u>';
+      }
       h += '<div class="row"><span class="dn">' + label + '</span>' + iconOf(dy[k][1], true, dy[k][4], dy[k][5]) +
-        '<span class="lo">' + signed(dy[k][3]) + '</span><div class="bar"><i style="left:' + a.toFixed(1) + '%;width:' + Math.max(8, b - a).toFixed(1) + '%"></i></div>' +
+        '<span class="lo">' + signed(dy[k][3]) + '</span><div class="bar"><i style="left:' + a.toFixed(1) + '%;width:' + w.toFixed(1) + '%;background:' + barGrad(dy[k][3], dy[k][2]) + '"></i>' + dot + '</div>' +
         '<span class="hi">' + signed(dy[k][2]) + '</span></div>';
     }
     $('drows').innerHTML = h;
@@ -494,13 +544,14 @@
     }
     weather.cat = categoryOf(code); weather.day = isDay; weather.ok = true;
     weather.code = code; weather.cloud = cloudc; weather.wind = wind; weather.wdir = wdir; weather.sr = sr; weather.ss = ss;
+    weather.temp = temp;
     weather.fogF = !!fogNow || weather.cat === 'fog';
 
     setT('temp', signed(temp));
     setT('desc', descOf(code, !!fogNow, cloudc, isDay));
     $('range').innerHTML = '<b>' + plus(tmax) + '</b> &nbsp; <b style="opacity:.65">' + plus(tmin) + '</b>';
     setT('feels', signed(feels));
-setT('feelsS', Math.abs(feels - temp) < 1.5 ? 'Как на термометре' : 'На ' + Math.abs(Math.round(feels - temp)) + '° ' + (feels < temp ? 'холоднее' : 'теплее'));
+    setT('feelsS', Math.abs(feels - temp) < 1.5 ? 'Как на термометре' : 'На ' + Math.abs(Math.round(feels - temp)) + '° ' + (feels < temp ? 'холоднее' : 'теплее'));
     setT('hum', Math.round(hum) + '%'); setT('humS', humText(hum));
     $('humBar').style.width = Math.max(0, Math.min(100, Math.round(hum))) + '%';
     $('windBar').style.width = Math.max(4, Math.min(100, wind / 15 * 100)) + '%';
