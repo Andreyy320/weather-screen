@@ -43,7 +43,7 @@ html, body { width: 1156px; height: 256px; overflow: hidden; }
 
 body {
     position: relative;
-        background: linear-gradient(180deg, #16203f 0%, #2a3866 100%);
+        background: #0b1020;
     color: #fff;
     font-family: var(--f-text);
     text-rendering: geometricPrecision;
@@ -1046,6 +1046,7 @@ html.boot .scene { display: none; }
 
 
 <script>
+  var T0 = Date.now();
 if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
 var BOOT = { font: 0, wx: 0, vid: 0 }, bootDone = false;
 function bootReveal() {
@@ -1593,16 +1594,8 @@ var dk = nativeNight ? 0 : (w[2] * 0.58 + w[1] * 0.22);   // было 0.46 и 0.
     $("lightRain").style.opacity = r.light ? 1 : 0;
 }
 
-/* проверяем, есть ли файл assets/rain_light.mp4 (если появился — подхватится сам) */
+/* отдельного видео небольшого дождя нет: пасмурное видео + капли кодом */
 var LIGHT_OK = false;
-(function () {
-    var t = document.createElement("video");
-    t.muted = true; t.preload = "metadata";
-    t.onloadedmetadata = function () { LIGHT_OK = true; if (VID.lw) updateWeatherVideo(VID.lc, VID.lw); };
-    t.onerror = function () { LIGHT_OK = false; };
-    t.src = V.rainLight;
-})();
-
 function applyBg(d, noVideo) {
     var p, w, cc, code;
     if (bgForce && BG_PRESETS[bgForce]) {
@@ -1928,7 +1921,7 @@ if (location.search.indexOf("debug") > -1) {
     })).then(function (r) { fontInfo = r.join("\n"); });
     setInterval(function () {
         var v = VID.cur >= 0 ? VID.slots[VID.cur] : null;
-        dbg.textContent = "окно: " + window.innerWidth + "x" + window.innerHeight + "  dpr " + window.devicePixelRatio + "  экран: " + screen.width + "x" + screen.height + "\n" + fontInfo + "\n" + lastWx + "\nvideo: " + (VID.file || "нет (SVG-небо)")
+       dbg.textContent = "открыта: " + Math.round((Date.now() - T0) / 1000) + " с\n" + "окно: " + window.innerWidth + "x" + window.innerHeight + "  dpr " + window.devicePixelRatio + "  экран: " + screen.width + "x" + screen.height + "\n" + fontInfo + "\n" + lastWx + "\nvideo: " + (VID.file || "нет (SVG-небо)")
             + (v ? "  x" + v.playbackRate.toFixed(2) + "  t=" + v.currentTime.toFixed(1) + "/" + (v.duration || 0).toFixed(1) + "  " + v.videoWidth + "x" + v.videoHeight : "")
             + (VID.busy ? "  [переход]" : "")
             + "\nжурнал (код|файл):\n" + VID.log.join("\n");
@@ -1942,6 +1935,7 @@ if (location.search.indexOf("debug") > -1) {
    Подробности в консоли (F12 -> Console), строки "[update]".
    ===================================================================== */
 (function () {
+    if (location.search.indexOf("noupdate") > -1) return;
     var CHECK_EVERY = 60 * 1000;       // как часто проверять
     var base = null, updating = false, unsure = false;
 
