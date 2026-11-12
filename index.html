@@ -1420,7 +1420,7 @@ setInterval(function () {
     var v = VID.slots[VID.cur], d = v.duration;
        if (SIMPLE) { v.loop = true; return; }
     var rate = v.playbackRate || 1;
-    if (d / rate < (VID.loopFade / 1000) * 2 + 1) { v.loop = true; return; }     // совсем короткий ролик — обычный loop
+   if (d / rate < 20) { v.loop = true; return; }
     v.loop = false;
     if (v.currentTime >= d - (VID.loopFade / 1000 + 0.5) * rate) vidLoop();
 }, 150);
