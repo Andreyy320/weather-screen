@@ -427,40 +427,8 @@ body {
 
 
 
-/* ===== Слайд 2: «Прогноз на 5 дней» как на референсе ===== */
-#c2a { left: 28px; top: 36px; width: 1100px; height: 184px; }
-
-.d5cal { position: absolute; left: 40px; top: 46px; width: 34px; height: 34px; opacity: .92; }
-.d5t {
-    position: absolute; left: 40px; top: 92px; white-space: nowrap;
-    font-family: var(--f-text); font-size: 22px; line-height: 28px; font-weight: 500;
-    color: rgba(255,255,255,.95);
-}
-.d5chev { position: absolute; left: 152px; top: 104px; width: 20px; height: 20px; opacity: .8; }
-
-#d5wrap { position: absolute; left: 200px; top: 0; width: 900px; height: 184px; }
-.d5c {
-    position: absolute; top: 0; width: 180px; height: 184px;
-    display: flex; flex-direction: column; align-items: center;
-    padding-top: 20px;
-}
-.d5c .dn {
-    font-family: var(--f-text); font-size: 22px; line-height: 28px; font-weight: 500;
-    letter-spacing: -.2px; color: rgba(255,255,255,.92); white-space: nowrap;
-}
-.d5c .di { width: 68px; height: 68px; margin-top: 6px; filter: drop-shadow(0 6px 10px rgba(20,40,120,.28)); }
-.d5c .di.sun { filter: drop-shadow(0 6px 12px rgba(255,150,0,.30)); }
-.d5c .di svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.d5c .tt {
-    margin-top: 8px; display: flex; align-items: baseline; gap: 12px; white-space: nowrap;
-    font-family: var(--f-disp); font-variant-numeric: tabular-nums;
-}
-.d5c .hi { font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -1px; color: #fff; }
-.d5c .lo { font-size: 28px; line-height: 40px; font-weight: 400; letter-spacing: -.8px; color: rgba(255,255,255,.60); }
-
-.d5t, .d5c .dn, .d5c .hi, .d5c .lo {
-    text-shadow: 0 1px 2px rgba(5,12,45,.55), 0 2px 10px rgba(5,12,45,.45), 0 0 24px rgba(5,12,45,.30);
-} 
+/* ===== Слайд 2: почасовой прогноз (панель 1100x208) ===== */
+#c2a { left: 28px; top: 24px; width: 1100px; height: 208px; }
 
 
 .noblur #c1a, .noblur #c2a { -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -1031,13 +999,19 @@ html.boot .scene { display: none; }
 
 <div class="card" id="c2a">
     <div class="tint"></div>
-
-    <svg class="d5cal" viewBox="0 0 24 24"><use href="#ic-cal"/></svg>
-    <div class="d5t">Прогноз<br>на 5 дней</div>
-    <svg class="d5chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-
-    <div class="vline" style="left:200px; top:32px; height:120px"></div>
-    <div id="d5wrap"></div>
+    <div id="c2in">
+    <div class="abs" id="pin"><svg viewBox="0 0 24 24"><use href="#ic-pin"/></svg></div>
+    <div class="abs" id="hdr">Прогноз погоды</div>
+    <div class="abs" id="city">Тирасполь</div>
+    <div class="hline"></div>
+    <div class="stat" style="left:20px"><div class="ic"><svg viewBox="0 0 24 24"><use href="#ic-thermo"/></svg></div><div class="lb">Ощущается как</div><div class="vl" id="feels">--°</div></div>
+    <div class="vline" style="left:176px; top:108px; height:50px"></div>
+    <div class="stat" style="left:188px"><div class="ic"><svg viewBox="0 0 24 24"><use href="#ic-wind"/></svg></div><div class="lb">Ветер</div><div class="vl" id="wind">-- м/с</div></div>
+    <div class="vline" style="left:300px; top:108px; height:50px"></div>
+    <div class="stat" style="left:312px"><div class="ic"><svg viewBox="0 0 24 24"><use href="#ic-drop"/></svg></div><div class="lb">Влажность</div><div class="vl" id="hum">--%</div></div>
+    <div class="vline" style="left:450px; top:24px; height:125px"></div>
+    <div id="fcWrap"></div>
+    </div>
 </div>
 
 </div>
@@ -1834,31 +1808,66 @@ document.getElementById("feels1").textContent = "Ощущается как " + f
         document.getElementById("mmMax").textContent = "Макс. " + fmtTemp(d.daily.temperature_2m_max[0]);
     }
 
-    try { renderDays(d); } catch (e) {}
+    try { renderHourly(d, cur, wcode, isDay); } catch (e) {}
 
     curWind = +cur.wind_speed_10m || 0;
         try { applyBg(d, noVideo); } catch (e) {}
     bootStep("wx");
 }
-var MONTHS_SHORT = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
+/* ---- слайд 2: левая панель + почасовой прогноз (первая ячейка «Сейчас», в ряд вставлен закат/восход) ---- */
+function renderHourly(d, cur, wcode, isDay) {
+    document.getElementById("feels").textContent = fmtTemp(cur.apparent_temperature);
+    document.getElementById("wind").textContent  = Math.round(cur.wind_speed_10m) + " м/с";
+    document.getElementById("hum").textContent   = Math.round(cur.relative_humidity_2m) + "%";
 
-function renderDays(d) {
-    var dl = d.daily;
-    if (!dl || !dl.time || !dl.temperature_2m_min || !dl.temperature_2m_max) return;
-    var n = Math.min(DAYS_COUNT, dl.time.length), i, dt, name, code, icon, html = "";
-    for (i = 0; i < n; i++) {
-        dt = new Date(+dl.time[i].slice(0, 4), +dl.time[i].slice(5, 7) - 1, +dl.time[i].slice(8, 10));
-        name = i === 0 ? "Сегодня" : DAYS_SHORT[dt.getDay()] + ", " + dt.getDate() + " " + MONTHS_SHORT[dt.getMonth()];
-        code = dl.weather_code ? dl.weather_code[i] : 3;
-        icon = iconFor(code, true);
-        html += '<div class="d5c" style="left:' + (i * 180) + 'px">'
-              +   '<div class="dn">' + name + '</div>'
-              +   '<div class="di' + (icon === "ic-sun" ? " sun" : "") + '"><svg viewBox="0 0 100 100"><use href="#' + icon + '"/></svg></div>'
-              +   '<div class="tt"><span class="hi">' + fmtTemp(dl.temperature_2m_max[i]) + '</span><span class="lo">' + fmtTemp(dl.temperature_2m_min[i]) + '</span></div>'
-              + '</div>';
-        if (i > 0) html += '<div class="vline" style="left:' + (i * 180) + 'px; top:32px; height:120px"></div>';
+    var times = d.hourly.time;
+    var nowStr = cur.time.slice(0, 13);
+    var start = 0, i;
+    for (i = 0; i < times.length; i++) {
+        if (times[i].slice(0, 13) === nowStr) { start = i; break; }
     }
-    document.getElementById("d5wrap").innerHTML = html;
+
+    var items = [], k, idx, it, ev;
+    for (k = 0; k < SLOTS; k++) {
+        idx = start + k * STEP_HOURS;
+        if (idx >= times.length) break;
+        items.push({ kind: "h", t: tsMin(times[idx]), idx: idx, first: k === 0 });
+    }
+    ev = nextSunEventCalc(d) || nextSunEvent(d);
+    if (ev) items.push(ev);
+    items.sort(function (a, b) { return a.t - b.t; });
+    items = items.slice(0, SLOTS);
+
+    var html = "", hh, icon, sunCls, hourCode;
+    for (k = 0; k < items.length; k++) {
+        it = items[k];
+        if (it.kind === "h") {
+            if (it.first) {
+                hh = "Сейчас";
+                icon = iconFor(wcode, isDay);
+            } else {
+                hh = times[it.idx].slice(11, 13) + ":00";
+                hourCode = effCode(d.hourly.weather_code[it.idx], d.hourly.cloud_cover ? d.hourly.cloud_cover[it.idx] : null);
+                icon = iconFor(hourCode, d.hourly.is_day[it.idx] === 1);
+            }
+            sunCls = (icon === "ic-sun") ? " sun" : "";
+            html += '<div class="fc" style="left:' + (k * 123.4).toFixed(1) + 'px">'
+                  +   '<div class="tm">' + hh + '</div>'
+                  +   '<div class="wi' + sunCls + '"><svg viewBox="0 0 100 100"><use href="#' + icon + '"/></svg></div>'
+                  +   '<div class="tp">' + fmtTemp(it.first ? cur.temperature_2m : d.hourly.temperature_2m[it.idx]) + '</div>'
+                  + '</div>';
+        } else {
+            html += '<div class="fc" style="left:' + (k * 123.4).toFixed(1) + 'px">'
+                  +   '<div class="tm">' + it.str.slice(11, 16) + '</div>'
+                  +   '<div class="wi sun"><svg viewBox="0 0 100 100"><use href="#' + (it.kind === "sunset" ? "ic-sunset" : "ic-sunrise") + '"/></svg></div>'
+                  +   '<div class="tp ev">' + (it.kind === "sunset" ? "Закат" : "Восход") + '</div>'
+                  + '</div>';
+        }
+        if (k > 0) {
+            html += '<div class="vline" style="left:' + (k * 123.4).toFixed(1) + 'px; top:24px; height:125px"></div>';
+        }
+    }
+    document.getElementById("fcWrap").innerHTML = html;
 }
 function saveCache(d) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: new Date().getTime(), d: d })); } catch (e) {} }
 function loadCache() {
