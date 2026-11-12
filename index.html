@@ -71,10 +71,7 @@ body {
     z-index: 1;
     pointer-events: none;
     background: transparent;
-    /* отдельный GPU-слой: смена прозрачности не перерисовывает остальное */
-    will-change: opacity;
-    transform: translateZ(0);
-    backface-visibility: hidden;
+  
 }
 
 #lightRain { position: absolute; left: 0; top: 0; width: 1156px; height: 256px; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 2.5s ease; }
@@ -93,7 +90,7 @@ body {
     transition: visibility 0s linear .8s;      /* скрыть после того как панели погасли */
 }
 .slide.on { visibility: visible; transition-delay: 0s; }
-.slide .card { opacity: 0; transition: opacity .8s ease; }
+.slide .card { opacity: 0; transition: opacity .25s ease; }
 .slide.on .card { opacity: 1; }
 
 /* ===== анимации SVG-неба ===== */
@@ -467,6 +464,13 @@ body {
 
 
 .noblur #c1a, .noblur #c2a { -webkit-backdrop-filter: none; backdrop-filter: none; }
+</style>
+<style>
+/* ===== ПЛАВНОСТЬ: меньше лишней нагрузки на плеер ===== */
+/* невидимый слой с каплями не крутится, пока не нужен (включается из JS) */
+#lightRain { display: none; }
+/* тени-фильтры на анимированных иконках перерисовываются каждый кадр — убираем */
+#bigIc, #bigIc.sun, .d5c .di, .d5c .di.sun, .fc .wi, .fc .wi.sun { filter: none !important; }
 </style>
 
 
@@ -1196,6 +1200,10 @@ function setScene(p) {
    • Пока играет видео, тяжёлое SVG-небо полностью отключено (display:none) —
      это главный источник лагов в старой версии.
    • Сторожок: если видео зависло/встало на паузу — оно само перезапускается.
+
+   ВАЖНО ДЛЯ ПЛАВНОСТИ: видео нужно заранее пережать в точный размер экрана
+   1156×256, 30 кадров/с (см. convert_videos.bat). Тогда плеер почти не
+   нагружается, и плавный стык цикла работает без рывков.
    ===================================================================== */
 var V = {
     zakat:      "assets/zakat.mp4",
@@ -1213,11 +1221,12 @@ var V = {
 };
 
 /* ===== СКОРОСТЬ ВИДЕО =====
-   SPEED — общая скорость всех роликов: 1 = как в файле, 0.6 = заметно медленнее, 0.4 = совсем плавно.
-   Быстро подобрать: открой index.html?speed=0.5
-   SPEED_FILE — поправка для отдельного ролика, если какой-то всё ещё быстрее остальных
-   (например "assets/rain.mp4": 0.7 — этот ролик будет ещё на 30% медленнее). */
-var SPEED = +((location.search.match(/speed=([\d.]+)/) || [])[1]) || 0.9;
+   SPEED — общая скорость всех роликов. Для плавности держим 1 (как в файле):
+   любая другая скорость даёт неровный показ кадров. Если нужно медленнее —
+   замедляй сам ролик при пережатии, а не здесь.
+   Быстро проверить: открой index.html?speed=0.5
+   SPEED_FILE — поправка для отдельного ролика. */
+var SPEED = +((location.search.match(/speed=([\d.]+)/) || [])[1]) || 1;
 var SPEED_FILE = {
     "assets/zakat.mp4": 1,
     "assets/fog.mp4": 1,
@@ -1232,7 +1241,8 @@ var SPEED_FILE = {
     "assets/yasna_night.mp4": 1
 };
 /* ===== ПОЛОЖЕНИЕ ВИДЕО ПО ВЫСОТЕ =====
-   Ролик шире и выше экрана, поэтому видна только полоса 1156×256.
+   Нужно только для НЕпережатых роликов (они шире и выше экрана).
+   Если видео уже пережато в 1156×256 — на положение это не влияет.
    Число 0–100 (%): 50 = по центру, больше = картинка едет ВВЕРХ (видно нижнюю часть ролика),
    меньше = картинка едет ВНИЗ (видно верхнюю часть).
    Быстро подобрать: index.html?bg=stormnight&ypos=75 */
@@ -1249,6 +1259,8 @@ function clipRate(file) {
     var r = SPEED * (SPEED_FILE[file] || 1);
     return r < 0.1 ? 0.1 : (r > 2 ? 2 : r);
 }
+/* SIMPLE = true  — обычный loop браузера (на стыке бывает короткий рывок);
+   SIMPLE = false — плавный стык двумя слотами (нужны пережатые видео). */
 var SIMPLE = true;
 var VID = {
     slots: [$("vidA"), $("vidB")],
@@ -1257,8 +1269,8 @@ var VID = {
     want: "",           // что хотим играть
     busy: false,        // идёт смена ролика или стык цикла
     pending: null,      // запрос, пришедший во время busy
-    fade: 1400,         // мс — плавность смены ролика
-    loopFade: 1500,     // мс — плавность стыка цикла
+    fade: 400,         // мс — плавность смены ролика
+    loopFade: 1000,     // мс — плавность стыка цикла
     svgTimer: 0,
     retryTimer: 0,
     log: []             // журнал выбора ролика: "код погоды|файл" (виден в ?debug)
@@ -1281,8 +1293,7 @@ var VID = {
 function showSvg(on) {
     var s = $("bgSvg");
     clearTimeout(VID.svgTimer);
-    if (on) { s.style.display = "block"; }
-    else { s.style.display = "none"; }
+      s.style.display = "none";
 }
 
 function safePlay(v) {
@@ -1304,7 +1315,8 @@ function startClip(v, file, reuse, onReady, onFail) {
     v.addEventListener("playing", ok);
     v.addEventListener("error", bad);
     timer = setTimeout(bad, 12000);
-    v.pause();
+       v.pause();
+    v.loop = SIMPLE;
     if (reuse && v._file === file) {
         try { v.currentTime = 0; } catch (e) {}
     } else {
@@ -1315,6 +1327,7 @@ function startClip(v, file, reuse, onReady, onFail) {
     try { v.defaultPlaybackRate = clipRate(file); v.playbackRate = clipRate(file); } catch (e0) {}
     v.style.objectPosition = "50% " + clipY(file) + "%";
     var p;
+    
     try { p = v.play(); } catch (e2) { bad(); return; }
     if (p && typeof p.catch === "function") p.catch(bad);
 }
@@ -1418,9 +1431,9 @@ function vidSet(file) {
 setInterval(function () {
     if (VID.cur < 0 || VID.busy) return;
     var v = VID.slots[VID.cur], d = v.duration;
-       if (SIMPLE) { v.loop = true; return; }
+    if (!d) return;
+    if (SIMPLE) { v.loop = true; return; }
     var rate = v.playbackRate || 1;
-   if (d / rate < 20) { v.loop = true; return; }
     v.loop = false;
     if (v.currentTime >= d - (VID.loopFade / 1000 + 0.5) * rate) vidLoop();
 }, 150);
@@ -1478,6 +1491,8 @@ function updateWeatherVideo(code, w) {
     }
     vidSet(r.file);
     if (r.file) $("scrim").style.opacity = r.dim ? 0.5 : (r.light ? 0.14 : 0.06);
+    /* слой с каплями включаем только когда он нужен — иначе он зря грузит плеер */
+    $("lightRain").style.display = r.light ? "block" : "none";
     $("lightRain").style.opacity = r.light ? 1 : 0;
 }
 
