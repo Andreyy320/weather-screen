@@ -43,7 +43,7 @@ html, body { width: 1156px; height: 256px; overflow: hidden; }
 
 body {
     position: relative;
-    background: #000;
+        background: linear-gradient(180deg, #16203f 0%, #2a3866 100%);
     color: #fff;
     font-family: var(--f-text);
     text-rendering: geometricPrecision;
@@ -1567,7 +1567,9 @@ function updateWeatherVideo(code, w) {
         if (VID.log.length > 6) VID.log.shift();
     }
       vidSet(r.file);
+             try { if (r.file) localStorage.setItem("wx_last_vid", r.file); } catch (e) {}
     if (!r.file) bootStep("vid");
+
     if (r.file) {
     var nativeNight = (r.file === V.clearNight || r.file === V.rainNight || r.file === V.stormNight || r.file === V.zakat);
 var dk = nativeNight ? 0 : (w[2] * 0.58 + w[1] * 0.22);   // было 0.46 и 0.20
@@ -1901,6 +1903,7 @@ function loadWeather() {
         if (!fresh) staleCache = c.d;               // старые данные: текст показываем, а видео ждёт свежую погоду
       try { render(c.d, !fresh); } catch (e) {}
     }
+        if (!VID.file) { try { var lv = localStorage.getItem("wx_last_vid"); if (lv) vidSet(lv); } catch (e) {} }
     loadWeather();
 })();
 
@@ -2003,7 +2006,7 @@ if (location.search.indexOf("debug") > -1) {
         });
         navigator.serviceWorker.ready.then(function (reg) {
             function ping() { if (reg.active) reg.active.postMessage("precache"); }
-            ping();                                   // докачать шрифты/видео, которых ещё нет в кэше
+                        setTimeout(ping, 30000);
             setInterval(ping, 10 * 60 * 1000);
         });
     }

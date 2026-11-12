@@ -57,7 +57,7 @@ function serveAsset(e) {
   var req = e.request, url = req.url;
   return caches.open(ASSETS).then(function (c) { return c.match(url); }).then(function (hit) {
     if (!hit) {
-      e.waitUntil(cacheFull(url)); // в кэше нет — догружаем целиком в фоне, а сейчас берём из сети
+     
       return fetch(req);
     }
     var range = req.headers.get('range');
