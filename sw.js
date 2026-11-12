@@ -1,4 +1,4 @@
-var CACHE = 'weather-screen-v1';
+var CACHE = 'weather-screen-v2';
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(['./', './index.html']); }));
@@ -20,7 +20,8 @@ function timeout(ms) {
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-    if (new URL(req.url).searchParams.has('chk')) return;
+      if (new URL(req.url).searchParams.has('chk')) return;
+  if (req.headers.has('range') || /\.(mp4|webm|otf)$/i.test(new URL(req.url).pathname)) return;
   e.respondWith(
     Promise.race([fetch(req), timeout(4000)]).then(function (res) {
 

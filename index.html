@@ -463,7 +463,10 @@ body {
 
 .d5t, .d5c .dn, .d5c .hi, .d5c .lo {
     text-shadow: 0 1px 2px rgba(5,12,45,.55), 0 2px 10px rgba(5,12,45,.45), 0 0 24px rgba(5,12,45,.30);
-}
+} 
+
+
+.noblur #c1a, .noblur #c2a { -webkit-backdrop-filter: none; backdrop-filter: none; }
 </style>
 
 
@@ -983,7 +986,7 @@ body {
 
 
 <script>
-if (location.search.indexOf("noblur") > -1) document.documentElement.className += " noblur";
+if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
 
 /* =====================================================================
   ФОН ОТ РЕАЛЬНОЙ ПОГОДЫ
@@ -1246,7 +1249,7 @@ function clipRate(file) {
     var r = SPEED * (SPEED_FILE[file] || 1);
     return r < 0.1 ? 0.1 : (r > 2 ? 2 : r);
 }
-
+var SIMPLE = true;
 var VID = {
     slots: [$("vidA"), $("vidB")],
     cur: -1,            // индекс видимого слота (-1 — видео нет)
@@ -1415,7 +1418,7 @@ function vidSet(file) {
 setInterval(function () {
     if (VID.cur < 0 || VID.busy) return;
     var v = VID.slots[VID.cur], d = v.duration;
-    if (!d || d !== d || d === Infinity) return;
+       if (SIMPLE) { v.loop = true; return; }
     var rate = v.playbackRate || 1;
     if (d / rate < (VID.loopFade / 1000) * 2 + 1) { v.loop = true; return; }     // совсем короткий ролик — обычный loop
     v.loop = false;
@@ -1430,7 +1433,7 @@ function watchdog() {
     if (v.paused && !v.ended) { safePlay(v); wdStuck = 0; return; }
     if (v.currentTime === wdLast) {
         wdStuck++;
-        if (wdStuck >= 3) {                       // ~6 секунд без движения кадров
+                if (wdStuck >= 8) {                // ~6 секунд без движения кадров
             wdStuck = 0;
             var f = VID.file;
             VID.file = "";                        // заставим vidSwitch перезагрузить ролик в свободный слот
@@ -1549,7 +1552,13 @@ function showSlide(i) {
     var m = location.search.match(/slide=(\d)/);
     if (m && +m[1] >= 1 && +m[1] <= slideEls.length) { showSlide(+m[1] - 1); return; }
     showSlide(0);
-    setInterval(function () { showSlide((curSlide + 1) % slideEls.length); }, SLIDE_SECONDS * 1000);
+        var lastSw = Date.now();
+    setInterval(function () {
+        var n = Date.now();
+        if (n - lastSw < SLIDE_SECONDS * 1000 - 300) return;
+        lastSw = n;
+        showSlide((curSlide + 1) % slideEls.length);
+    }, 1000);
 })();
 
 
