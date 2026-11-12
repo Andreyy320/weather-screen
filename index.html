@@ -1011,7 +1011,7 @@ html.boot .slide.on .card { opacity: 0; }
     <!-- справа: город и ощущается как -->
     <div class="abs" id="pin1"><svg viewBox="0 0 24 24"><use href="#ic-pin"/></svg></div>
     <div class="abs" id="city1">Тирасполь</div>
-    <div class="abs" id="feels1">ааааааааааааааааааа как --°</div>
+    <div class="abs" id="feels1">Ощущается как --°</div>
     
 
     <!-- нужны для JS, не показываем -->
@@ -1922,16 +1922,16 @@ if (location.search.indexOf("debug") > -1) {
 }
 
 /* =====================================================================
-   АВТООБНОВЛЕНИЕ: раз в несколько минут смотрим, не изменился ли index.html
-   на сервере (GitHub Pages). Если изменился — плавно гасим экран и
-   перезагружаем страницу. Погода берётся из localStorage-кэша, так что
-   после перезагрузки всё появляется почти мгновенно.
-   Руками обновлять / жать F5 больше не нужно.
+   АВТООБНОВЛЕНИЕ: раз в минуту смотрим, не изменился ли index.html на
+   сервере (GitHub Pages). Если изменился — плавно гасим экран и
+   перезагружаем страницу САМИ. Ничего нажимать не нужно.
+   Подробности в консоли (F12 -> Console), строки "[update]".
    ===================================================================== */
 (function () {
-    var CHECK_EVERY = 2 * 60 * 1000;   // как часто проверять (2 минуты)
+    var CHECK_EVERY = 60 * 1000;       // как часто проверять
     var base = null, updating = false;
 
+    function log() { try { console.log.apply(console, ["[update]"].concat([].slice.call(arguments))); } catch (e) {} }
     function hash(s) {
         var h = 5381, i = s.length;
         while (i) h = (h * 33) ^ s.charCodeAt(--i);
@@ -1939,11 +1939,12 @@ if (location.search.indexOf("debug") > -1) {
     }
     function get(cb) {
         var x = new XMLHttpRequest();
-        // уникальный ?chk=... обходит кэш браузера/GitHub Pages и service worker
+        // уникальный ?chk=... обходит кэш браузера, GitHub Pages и service worker
         x.open("GET", location.pathname + "?chk=" + new Date().getTime(), true);
         x.timeout = 15000;
         x.onreadystatechange = function () {
-            if (x.readyState !== 4 || x.status !== 200 || x.responseText.length < 1000) return;
+            if (x.readyState !== 4) return;
+            if (x.status !== 200 || x.responseText.length < 1000) { log("ошибка проверки", x.status); return; }
             cb(hash(x.responseText));
         };
         x.send();
@@ -1951,14 +1952,21 @@ if (location.search.indexOf("debug") > -1) {
     function applyUpdate() {
         if (updating) return;
         updating = true;
-        try {
-            document.body.style.transition = "opacity .6s";
-            document.body.style.opacity = "0";
-        } catch (e) {}
-        setTimeout(function () { location.reload(); }, 700);
+        log("найдена новая версия — перезагружаю");
+        var went = false;
+        function go() {
+            if (went) return;
+            went = true;
+            try { document.body.style.transition = "opacity .6s"; document.body.style.opacity = "0"; } catch (e) {}
+            setTimeout(function () { location.reload(); }, 700);
+        }
+        // сначала кладём СВЕЖУЮ копию в кэш браузера, иначе перезагрузка может взять старую
+        try { fetch(location.pathname, { cache: "reload" }).then(go, go); } catch (e) { go(); }
+        setTimeout(go, 5000);
     }
     function check() {
         get(function (h) {
+            log("проверка", h, base === null ? "(эталон)" : (h === base ? "без изменений" : "ИЗМЕНИЛАСЬ"));
             if (base === null) { base = h; return; }
             if (h !== base) applyUpdate();
         });
@@ -1967,7 +1975,7 @@ if (location.search.indexOf("debug") > -1) {
     setInterval(check, CHECK_EVERY);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) check(); });
 
-    // офлайн-кэш (sw.js лежит рядом). Не обязателен, но даёт запуск без интернета.
+    // офлайн-кэш (sw.js лежит рядом)
     if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
         navigator.serviceWorker.register("sw.js").catch(function () {});
     }

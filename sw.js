@@ -1,7 +1,7 @@
-var CACHE = 'weather-screen-v2';
+var CACHE = 'weather-screen-v3';
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(['./', './index.html']); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll([new Request('./', { cache: 'reload' }), new Request('./index.html', { cache: 'reload' })]); }));
   self.skipWaiting();
 });
 
@@ -23,7 +23,7 @@ self.addEventListener('fetch', function (e) {
       if (new URL(req.url).searchParams.has('chk')) return;
   if (req.headers.has('range') || /\.(mp4|webm|otf)$/i.test(new URL(req.url).pathname)) return;
   e.respondWith(
-    Promise.race([fetch(req), timeout(4000)]).then(function (res) {
+    Promise.race([fetch(req.url, { cache: 'no-cache' }), timeout(4000)]).then(function (res) {
 
       if (!res || !res.ok) throw new Error('bad response');
       var copy = res.clone();
