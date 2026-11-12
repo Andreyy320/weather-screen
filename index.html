@@ -476,6 +476,7 @@ body {
 
 /* пока идёт загрузка — панели скрыты, потом плавно проявляются */
 html.boot .slide.on .card { opacity: 0; }
+html.boot #scrim { opacity: 0 !important; }
 .slide .card { transition: opacity .8s ease; }
 </style>
 
@@ -1045,7 +1046,7 @@ html.boot .slide.on .card { opacity: 0; }
 
 <script>
 if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
-var BOOT = { font: 0, wx: 0, vid: 1 }, bootDone = false;
+var BOOT = { font: 0, wx: 0, vid: 0 }, bootDone = false;
 function bootReveal() {
     if (bootDone) return;
     bootDone = true;
@@ -1055,7 +1056,7 @@ function bootStep(k) {
     BOOT[k] = 1;
     if (BOOT.font && BOOT.wx && BOOT.vid) setTimeout(bootReveal, 150);
 }
-setTimeout(bootReveal, 2000); // страховка: если что-то не загрузилось — всё равно показать
+setTimeout(bootReveal, 8000);
 (function () {
     if (!document.fonts || !document.fonts.load) { bootStep("font"); return; }
     var f = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'], n = 0;
@@ -1896,7 +1897,7 @@ function loadWeather() {
     if (c && c.d) {
         var fresh = (new Date().getTime() - c.t) < CACHE_MAX_AGE;
         if (!fresh) staleCache = c.d;               // старые данные: текст показываем, а видео ждёт свежую погоду
-      try { render(c.d, false); } catch (e) {}
+      try { render(c.d, !fresh); } catch (e) {}
     }
     loadWeather();
 })();
