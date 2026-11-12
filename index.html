@@ -477,6 +477,7 @@ body {
 /* пока идёт загрузка — панели скрыты, потом плавно проявляются */
 html.boot .slide.on .card { opacity: 0; }
 html.boot #scrim { transition: none !important; }
+html.boot .scene { visibility: hidden; }
 .slide .card { transition: opacity .8s ease; }
 </style>
 
@@ -1435,8 +1436,9 @@ function vidSwitch(file) {
     var prevFile = VID.file;
     VID.busy = true;
     VID.file = file;
-    startClip(nv, file, false, function () {
+      startClip(nv, file, false, function () {
               bootStep("vid");
+              showSvg(false);
 
         VID.cur = idx;
         fadeIn(nv, VID.fade, function () {
