@@ -1822,7 +1822,7 @@ function render(d, noVideo) {
     document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
    document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
 document.getElementById("bigCond").textContent = condText(wcode, isDay);
-document.getElementById("feels1").textContent = "fffff " + fmtTemp(cur.apparent_temperature);
+document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature);
     if (d.daily && d.daily.temperature_2m_min && d.daily.temperature_2m_max) {
         document.getElementById("mmMin").textContent = "Мин. " + fmtTemp(d.daily.temperature_2m_min[0]);
         document.getElementById("mmMax").textContent = "Макс. " + fmtTemp(d.daily.temperature_2m_max[0]);
