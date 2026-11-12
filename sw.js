@@ -18,7 +18,6 @@ var ASSET_LIST = [
   'assets/pasmyrno.mp4',
   'assets/peremen_oblako.mp4',
   'assets/rain.mp4',
-  'assets/rain_light.mp4',
   'assets/rain_night.mp4',
   'assets/snow.mp4',
   'assets/storm.mp4',
