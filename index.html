@@ -1200,6 +1200,7 @@ var V = {
     overcast:   "assets/pasmyrno.mp4",
     partly:     "assets/peremen_oblako.mp4",
     rain:       "assets/rain.mp4",
+    rainLight:  "assets/rain_light.mp4",      // небольшой дождь (если файла нет — пасмурное видео + капли кодом)
     rainNight:  "assets/rain_night.mp4",
     snow:       "assets/snow.mp4",
     storm:      "assets/storm.mp4",
@@ -1446,12 +1447,14 @@ function pickVideo(code, w) {
     var night = w[2] >= 0.5, dusk = w[1] >= 0.35;
     var snow  = (code >= 71 && code <= 77) || code === 85 || code === 86;
     var rain  = (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
+    var ov = false;
     var light = (code === 51 || code === 53 || code === 55 || code === 61 || code === 80);   // морось / небольшой дождь
     var file = "", dim = false;
 
     if (code >= 95)                          file = night ? V.stormNight : V.storm;
     else if (snow)                         { file = V.snow; dim = night; }
-    else if (rain && light)                { file = V.overcast; dim = night; }   // небольшой дождь: пасмурное небо + редкие капли
+    else if (rain && light && LIGHT_OK)    { file = V.rainLight; dim = night; }   // есть своё видео небольшого дождя
+    else if (rain && light)                { file = V.overcast; dim = night; ov = true; }   // видео нет: пасмурное небо + редкие капли
     else if (rain)                           file = night ? V.rainNight : V.rain;
     else if (dusk && code <= 2)              file = V.zakat;                 // закат/рассвет — только при ясной и малооблачной погоде
     else if (code === 45 || code === 48)   { file = V.fog; dim = night; }
@@ -1460,12 +1463,12 @@ function pickVideo(code, w) {
     else if (code === 0 || code === 1)       file = night ? V.clearNight : V.sunny;
 
     /* dim = дневной ролик показываем ночью -> затемняем */
-    return { file: file, dim: dim, light: light && rain };
+    return { file: file, dim: dim, light: ov };
 }
 
 function updateWeatherVideo(code, w) {
     var r = pickVideo(code, w);
-    VID.want = r.file;
+    VID.want = r.file; VID.lc = code; VID.lw = w;
     if (VID.log[VID.log.length - 1] !== (code + "|" + r.file)) {
         VID.log.push(code + "|" + r.file);
         if (VID.log.length > 6) VID.log.shift();
@@ -1474,6 +1477,16 @@ function updateWeatherVideo(code, w) {
     if (r.file) $("scrim").style.opacity = r.dim ? 0.5 : (r.light ? 0.14 : 0.06);
     $("lightRain").style.opacity = r.light ? 1 : 0;
 }
+
+/* проверяем, есть ли файл assets/rain_light.mp4 (если появился — подхватится сам) */
+var LIGHT_OK = false;
+(function () {
+    var t = document.createElement("video");
+    t.muted = true; t.preload = "metadata";
+    t.onloadedmetadata = function () { LIGHT_OK = true; if (VID.lw) updateWeatherVideo(VID.lc, VID.lw); };
+    t.onerror = function () { LIGHT_OK = false; };
+    t.src = V.rainLight;
+})();
 
 function applyBg(d, noVideo) {
     var p, w, cc, code;
@@ -1792,7 +1805,7 @@ if (location.search.indexOf("debug") > -1) {
     })).then(function (r) { fontInfo = r.join("\n"); });
     setInterval(function () {
         var v = VID.cur >= 0 ? VID.slots[VID.cur] : null;
-        dbg.textContent = fontInfo + "\n" + lastWx + "\nvideo: " + (VID.file || "нет (SVG-небо)")
+        dbg.textContent = "окно: " + window.innerWidth + "x" + window.innerHeight + "  dpr " + window.devicePixelRatio + "  экран: " + screen.width + "x" + screen.height + "\n" + fontInfo + "\n" + lastWx + "\nvideo: " + (VID.file || "нет (SVG-небо)")
             + (v ? "  x" + v.playbackRate.toFixed(2) + "  t=" + v.currentTime.toFixed(1) + "/" + (v.duration || 0).toFixed(1) + "  " + v.videoWidth + "x" + v.videoHeight : "")
             + (VID.busy ? "  [переход]" : "")
             + "\nжурнал (код|файл):\n" + VID.log.join("\n");
