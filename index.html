@@ -1261,7 +1261,7 @@ function clipRate(file) {
 }
 /* SIMPLE = true  — обычный loop браузера (на стыке бывает короткий рывок);
    SIMPLE = false — плавный стык двумя слотами (нужны пережатые видео). */
-var SIMPLE = true;
+var SIMPLE = false;
 var VID = {
     slots: [$("vidA"), $("vidB")],
     cur: -1,            // индекс видимого слота (-1 — видео нет)
