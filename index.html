@@ -477,7 +477,7 @@ body {
 /* пока идёт загрузка — панели скрыты, потом плавно проявляются */
 html.boot .slide.on .card { opacity: 0; }
 html.boot #scrim { transition: none !important; }
-html.boot .scene { visibility: hidden; }
+html.boot .scene { display: none; }
 .slide .card { transition: opacity .8s ease; }
 </style>
 
@@ -486,7 +486,7 @@ html.boot .scene { visibility: hidden; }
 
 </head>
 <body>
-
+<script>try { var pp = localStorage.getItem("wx_poster"); if (pp) document.body.style.background = "url(" + pp + ") 0 0 / 100% 100% no-repeat"; } catch (e) {}</script>
 <!-- ===================== ОБЩИЕ ИКОНКИ ===================== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1427,7 +1427,14 @@ function flushPending() {
     VID.pending = null;
     vidSet(f);
 }
-
+function savePoster(v) {
+    try {
+        var c = document.createElement("canvas");
+        c.width = 578; c.height = 128;
+        c.getContext("2d").drawImage(v, 0, 0, 578, 128);
+        localStorage.setItem("wx_poster", c.toDataURL("image/jpeg", 0.6));
+    } catch (e) {}
+}
 /* смена ролика */
 function vidSwitch(file) {
     var old = VID.cur >= 0 ? VID.slots[VID.cur] : null;
@@ -1444,6 +1451,7 @@ function vidSwitch(file) {
         fadeIn(nv, VID.fade, function () {
             if (old) hideNow(old);
             showSvg(false);                      // видео полностью закрывает небо — небо выключаем
+                        setTimeout(function () { savePoster(nv); }, 1500);
             VID.busy = false;
             flushPending();
         });
