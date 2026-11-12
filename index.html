@@ -1,1005 +1,1804 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Время и погода</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=Nunito:wght@700;800&display=swap" media="print" onload="this.media='all'">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1156, initial-scale=1.0">
+<title>Часы и погода</title>
+
 <style>
-  :root { --rd: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", -apple-system, "Inter", "Segoe UI", Arial, sans-serif; --sf: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+/* =====================================================================
+  ШРИФТЫ — Apple SF Pro
+  Положи 4 файла в папку  fonts/  рядом с index.html:
+    SF-Pro-Display-Regular.otf   SF-Pro-Display-Medium.otf
+    SF-Pro-Text-Medium.otf       SF-Pro-Text-Semibold.otf
+  Проверка: открой index.html?debug  — внизу слева покажет, какие шрифты загрузились.
+  ===================================================================== */
+@font-face { font-family: "SF Pro Display"; font-weight: 400; font-style: normal; font-display: block;
+  src: local("SF Pro Display Regular"), local("SFProDisplay-Regular"), url("fonts/SF-Pro-Display-Regular.otf") format("opentype"); }
+@font-face { font-family: "SF Pro Display"; font-weight: 500; font-style: normal; font-display: block;
+  src: local("SF Pro Display Medium"), local("SFProDisplay-Medium"), url("fonts/SF-Pro-Display-Medium.otf") format("opentype"); }
+@font-face { font-family: "SF Pro Text"; font-weight: 500; font-style: normal; font-display: block;
+  src: local("SF Pro Text Medium"), local("SFProText-Medium"), url("fonts/SF-Pro-Text-Medium.otf") format("opentype"); }
+@font-face { font-family: "SF Pro Text"; font-weight: 600; font-style: normal; font-display: block;
+  src: local("SF Pro Text Semibold"), local("SFProText-Semibold"), url("fonts/SF-Pro-Text-Semibold.otf") format("opentype"); }
 
-  #stage { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; transform-origin: 0 0; overflow: hidden; background: #000; }
-  canvas { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; }
-  #vid { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; object-fit: cover; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
-  #wrap { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; color: #fff; font-family: var(--sf); -webkit-font-smoothing: antialiased; letter-spacing: -0.1px; text-shadow: 0 1px 12px rgba(0,30,90,0.28); }
+:root {
+  --f-disp: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+  --f-text: "SF Pro Text",    -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
 
-  .slide { position: absolute; left: 0; top: 0; width: 1152px; height: 256px; opacity: 0; transition: opacity 0.8s ease; pointer-events: none; }
-  .slide.on { opacity: 1; }
+  /* ===== СТЕКЛО ПАНЕЛЕЙ (прозрачное, фон хорошо виден) =====
+    --panel-tint: синяя заливка панели (0 = совсем прозрачное, .15 = заметная).
+    --panel-blur: размытие фона под панелью (0px = фон абсолютно чёткий).
+    Если текст плохо читается на светлом небе — увеличь tint (до .12–.15) или усиль text-shadow внизу CSS. */
+  --panel-tint: .06;
+  --panel-blur: 6px;
 
-  /* ===== карточка-виджет: матовое стекло, как в iOS ===== */
-  .card { position: absolute; top: 14px; height: 228px; box-sizing: border-box; border-radius: 28px; overflow: hidden;
-    background: linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.05) 100%), rgba(18,54,126,0.28);
-    -webkit-backdrop-filter: blur(26px) saturate(170%) brightness(0.96); backdrop-filter: blur(26px) saturate(170%) brightness(0.96);
-    border: 1px solid rgba(255,255,255,0.34);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 0 0 1px rgba(255,255,255,0.05), 0 14px 36px rgba(8,30,80,0.34); }
-  .nofx .card { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(20,56,130,0.5); }
-  .nofx * { animation: none !important; }
+  /* скорость движения облаков SVG-неба (меняется из JS от погоды и ветра) */
+  --cdur: 600s;
+}
 
-  .lbl { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-  .lbl svg { width: 13px; height: 13px; flex: none; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .rise { opacity: 0; transform: translateY(10px); transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.2,0.8,0.2,1); }
-  .slide.on .rise { opacity: 1; transform: none; }
-  .slide.on .d1 { transition-delay: 0.05s; } .slide.on .d2 { transition-delay: 0.12s; } .slide.on .d3 { transition-delay: 0.19s; }
-  .slide.on .d4 { transition-delay: 0.26s; } .slide.on .d5 { transition-delay: 0.33s; } .slide.on .d6 { transition-delay: 0.4s; }
+html, body { width: 1156px; height: 256px; overflow: hidden; }
 
-  svg.wi { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 3px 4px rgba(0,20,60,0.22)); }
-  .dropf { animation: dropf 1.2s linear infinite; }
-  .dropf:nth-of-type(2n) { animation-delay: -0.4s; } .dropf:nth-of-type(3n) { animation-delay: -0.8s; }
-  @keyframes dropf { 0% { transform: translateY(-4px); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(8px); opacity: 0; } }
-  .flk { animation: flk 3.2s steps(1) infinite; }
-  @keyframes flk { 0%, 86%, 100% { opacity: 1; } 89% { opacity: 0.4; } 92% { opacity: 1; } 95% { opacity: 0.55; } }
-  /* лёгкое «дыхание» тумана поверх иконки */
-  .fogl { animation: fogl 6s ease-in-out infinite; }
-  .fogl:nth-of-type(2n) { animation-delay: -2s; animation-direction: reverse; }
-  .fogl:nth-of-type(3n) { animation-delay: -4s; }
-  @keyframes fogl { 0%, 100% { transform: translateX(-3px); } 50% { transform: translateX(4px); } }
+body {
+    position: relative;
+    background: #0b1d5c;
+    color: #fff;
+    font-family: var(--f-text);
+    text-rendering: geometricPrecision;
+    font-kerning: normal;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
 
-  /* ===== ЭКРАН 1 ===== */
-  #cClock { position: absolute; left: 30px; top: 0; width: 350px; height: 256px; }
-  #dateRow { position: absolute; left: 6px; top: 50px; font-size: 24px; white-space: nowrap; font-family: var(--rd); }
-  #wday { font-weight: 600; }
-  #dateTxt { font-weight: 600; opacity: 0.75; margin-left: 10px; }
-  #time { position: absolute; left: 0; top: 84px; font-family: var(--rd); font-size: 122px; font-weight: 800; letter-spacing: -2px; color: rgba(255,255,255,0.94); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap;
-    text-shadow: 0 2px 18px rgba(0,20,70,0.30); }
-  #time .col { display: inline-block; margin: 0 1px; transition: opacity 0.25s; position: relative; top: -8px; }
-  #time .col.off { opacity: 0.3; }
+/* =====================================================================
+  СЛОИ (снизу вверх):
+   0  SVG-небо (запасной фон, отключается когда играет видео)
+   1-2 два видео-слота (кроссфейд между ними)
+   3  scrim (лёгкое затемнение)
+   4  слайды с панелями
+  ===================================================================== */
+.scene { position: absolute; left: 0; top: 0; width: 1156px; height: 256px; display: block; z-index: 0; }
 
-  #cNow { position: absolute; left: 396px; top: 0; width: 310px; height: 256px; text-align: center; }
-  #loc { position: absolute; left: 0; right: 0; top: 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.9px; opacity: 0.6; }
-  #city { position: absolute; left: 0; right: 0; top: 32px; font-size: 26px; font-weight: 500; letter-spacing: -0.3px; }
-  #temp { position: absolute; left: 0; right: 0; top: 64px; padding-left: 14px; font-size: 104px; font-weight: 200; letter-spacing: -3px; line-height: 1; white-space: nowrap; text-shadow: 0 2px 14px rgba(0,20,70,0.18); }
-  #desc { position: absolute; left: 0; right: 0; top: 176px; font-size: 20px; font-weight: 500; white-space: nowrap; }
-  #range { position: absolute; left: 0; right: 0; top: 206px; font-size: 22px; font-weight: 500; opacity: 0.9; white-space: nowrap; }
-  #range b { font-weight: 500; }
+/* ===== ВИДЕО: два слота, плавная смена и бесшовный цикл ===== */
+.vid {
+    position: absolute; left: 0; top: 0;
+    width: 1156px; height: 256px;
+    object-fit: cover;
+    opacity: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: transparent;
+    /* отдельный GPU-слой: смена прозрачности не перерисовывает остальное */
+    will-change: opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
 
-  #cHours { left: 724px; width: 414px; padding: 14px 16px; }
-  #cHours .lbl { padding: 0 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.22); }
-  #hrs { position: absolute; left: 10px; right: 10px; top: 46px; bottom: 10px; display: flex; align-items: stretch; }
-  .hc { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 1px; border-radius: 22px; }
-  .hc { min-width: 0; }
-  .hc .t { font-size: 17px; font-weight: 500; opacity: 0.75; }
-  .hc:first-child .t { opacity: 1; font-weight: 700; font-size: 14px; letter-spacing: -0.2px; white-space: nowrap; line-height: 20px; }
-  .hc .t { line-height: 20px; }
-  .hc svg { width: 52px; height: 42px; margin: 12px 0 10px; }
-  .hc b { font-size: 28px; font-weight: 500; letter-spacing: -0.5px; }
-  .hc .pp { font-size: 14px; font-weight: 700; color: #8fdcff; height: 16px; margin-top: 6px; }
+#lightRain { position: absolute; left: 0; top: 0; width: 1156px; height: 256px; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 2.5s ease; }
+#scrim {
+    position: absolute; left: 0; top: 0; width: 1156px; height: 256px;
+    background: #050b2c; opacity: .06; transition: opacity 3s ease; pointer-events: none;
+    z-index: 3;
+}
 
-  /* ===== ЭКРАН 2 ===== */
-  #cDays { left: 14px; width: 560px; padding: 16px 22px; }
-  #drows { position: absolute; left: 22px; right: 22px; top: 46px; bottom: 10px; display: flex; flex-direction: column; justify-content: space-around; }
-  .row { display: flex; align-items: center; height: 32px; position: relative; }
-  .row + .row::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 1px; background: rgba(255,255,255,0.18); }
-  .row .dn { width: 110px; font-size: 20px; font-weight: 600; }
-  .row svg { width: 40px; height: 32px; margin-right: 18px; flex: none; }
-  .row .lo { width: 48px; text-align: right; font-size: 20px; font-weight: 500; opacity: 0.55; font-variant-numeric: tabular-nums; }
-  .row .hi { width: 48px; text-align: left; font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+/* ===== слайды: сам слайд НЕ меняет прозрачность (иначе ломается backdrop-filter),
+   плавно появляются/исчезают панели внутри ===== */
+.slide {
+    position: absolute; left: 0; top: 0; width: 1156px; height: 256px;
+    z-index: 4; pointer-events: none;
+    visibility: hidden;
+    transition: visibility 0s linear .8s;      /* скрыть после того как панели погасли */
+}
+.slide.on { visibility: visible; transition-delay: 0s; }
+.slide .card { opacity: 0; transition: opacity .8s ease; }
+.slide.on .card { opacity: 1; }
 
-  /* полоска температуры в стиле Apple Weather:
-     тёмная дорожка, поверх неё «таблетка» диапазона с цветом по реальной температуре,
-     белая точка = текущая температура (только в строке «Сегодня») */
-  .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(8,28,70,0.34); margin: 0 12px; position: relative; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.08); }
-  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; box-shadow: 0 0 5px rgba(255,255,255,0.18); }
-  .bar u { position: absolute; top: 50%; width: 6px; height: 6px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; border: 2px solid rgba(8,28,70,0.55); box-sizing: content-box; box-shadow: 0 1px 3px rgba(0,0,0,0.3); text-decoration: none; }
+/* ===== анимации SVG-неба ===== */
+.fx { transition: opacity 3s ease; }
+@keyframes rainfall { from { transform: translate(0,-24px); } to { transform: translate(-16px,276px); } }
+@keyframes rainfall2 { from { transform: translate(0,-30px); } to { transform: translate(-80px,276px); } }
+@keyframes snowfall { from { transform: translate(0,-8px); }  to { transform: translate(18px,268px); } }
+@keyframes fogmove  { from { transform: translateX(-40px); }  to { transform: translateX(40px); } }
+@keyframes twinkle  { 0%,100% { opacity: .2; } 50% { opacity: 1; } }
+.cs { animation: cslide var(--cdur) steps(150) infinite alternate; }
+@keyframes cslide { from { transform: translateX(0); } to { transform: translateX(-200px); } }
+.fg { animation: fogmove 30s ease-in-out infinite alternate; }
+.rd { animation: rainfall .8s linear infinite; }
+.rd2 { animation: rainfall2 .5s linear infinite; }
+.sn { animation: snowfall 7s linear infinite; }
+.tw { animation: twinkle 3s ease-in-out infinite; }
+@keyframes strike {
+    0%,84%,100% { opacity: 0; }
+    85%   { opacity: 1; }
+    86.5% { opacity: .15; }
+    88%   { opacity: .95; }
+    90%   { opacity: .3; }
+    92%   { opacity: .75; }
+    96%   { opacity: 0; }
+}
+.bolt { opacity: 0; animation: strike 7s linear infinite; }
 
-  #tiles { position: absolute; left: 588px; top: 0; width: 550px; height: 256px; }
-  .tile { position: absolute; width: 176px; height: 107px; padding: 13px 16px 12px; border-radius: 22px; display: flex; flex-direction: column; justify-content: space-between; }
-  .tile .v { font-size: 34px; font-weight: 500; letter-spacing: -0.8px; white-space: nowrap; line-height: 1; }
-  .tile .v small { font-size: 16px; font-weight: 500; letter-spacing: 0; opacity: 0.7; margin-left: 3px; }
-  .tile .s { font-size: 13px; font-weight: 500; opacity: 0.88; white-space: nowrap; }
-  .tile .uvb { position: relative; flex: none; height: 4px; border-radius: 2px; background: linear-gradient(90deg,#5ee27a,#ffe14a,#ff9a3d,#ff4d4d,#b04dff); }
-  .tile .uvb i { position: absolute; top: -2px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,0.25); }
-  .tile .sun2 { font-size: 22px; font-weight: 500; letter-spacing: -0.3px; line-height: 1.25; white-space: nowrap; }
-  .tile .sun2 span { font-size: 12px; opacity: 0.6; font-weight: 500; margin-right: 8px; letter-spacing: 0; }
-  .tile .gauge { position: absolute; left: 16px; right: 16px; bottom: 34px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.22); overflow: hidden; }
-  .tile .gauge i { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 2px; background: #64d2ff; transition: width 1s ease; }
+#fxSun { transition: opacity 3s ease, transform 3s ease; }
+@keyframes spin    { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes breathe { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.09); } }
+@keyframes sway    { from { transform: translateX(-12px); } to { transform: translateX(12px); } }
+@keyframes bankmove { from { transform: translateX(-140px); } to { transform: translateX(140px); } }
+@keyframes splash  { 0% { opacity: .75; transform: scale(.2); } 100% { opacity: 0; transform: scale(4,2); } }
+@keyframes shoot {
+    0%      { opacity: 0; transform: translate(0,0); }
+    1%      { opacity: 1; }
+    4.5%    { opacity: 0; transform: translate(-240px,120px); }
+    100%    { opacity: 0; transform: translate(-240px,120px); }
+}
+.spin    { transform-box: fill-box; transform-origin: center; animation: spin 180s linear infinite; }
+.breathe { transform-box: fill-box; transform-origin: center; animation: breathe 7s ease-in-out infinite; }
+.sw      { animation: sway 3s ease-in-out infinite alternate; }
+.bk1     { animation: bankmove 45s ease-in-out infinite alternate; }
+.bk2     { animation: bankmove 70s ease-in-out infinite alternate-reverse; }
+.fgr     { animation: fogmove 45s ease-in-out infinite alternate-reverse; }
+.sh      { opacity: 0; animation: shoot 11s linear infinite; }
+.spl     { opacity: 0; transform-box: fill-box; transform-origin: center; animation: splash .9s ease-out infinite; }
 
-  /* большие карточки: влажность / ощущается / ветер */
-  .tile.big { height: 228px; padding: 20px 18px 20px 20px; border-radius: 28px; justify-content: space-between; }
-  .tile.big .lbl { font-size: 13px; letter-spacing: 0.6px; }
-  .tile.big .lbl svg { width: 16px; height: 16px; }
-  .tile.big .v { font-size: 58px; font-weight: 300; letter-spacing: -2px; line-height: 1; text-shadow: 0 2px 14px rgba(0,20,70,0.18); }
-  .tile.big .v small { font-size: 20px; font-weight: 500; letter-spacing: 0; margin-left: 4px; opacity: 0.75; }
-  .tile.big .s { font-size: 15px; font-weight: 500; opacity: 0.92; text-align: center; }
-  .tile.big .mid { display: flex; flex-direction: column; align-items: center; text-align: center; }
-  .tile.big .mid .meter { align-self: stretch; }
-  .tile.big .meter { position: relative; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.24); margin-top: 16px; }
-  .tile.big .meter i { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 3px; transition: width 1s ease; }
-  .tile.big .meter.ghost { visibility: hidden; }
-  .tile.big .meter.hum i { background: linear-gradient(90deg, #64d2ff, #b9ecff); }
-  .tile.big .meter.wnd i { background: linear-gradient(90deg, #bfe6ff, #ffffff); }
-  .tile.big .wd { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; }
-  .tile.big .wd svg { width: 16px; height: 16px; transition: transform 1s ease; }
+/* ===== панели: прозрачное «стекло» — фон (видео) хорошо виден ===== */
+.card {
+    position: absolute;
+    overflow: hidden;
+    border-radius: 44px;
+    border: 1px solid rgba(255,255,255,.28);
+    background:
+        linear-gradient(160deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.02) 50%, rgba(255,255,255,.05) 100%),
+        rgba(16,36,104, var(--panel-tint));
+    -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(1.3);
+    backdrop-filter: blur(var(--panel-blur)) saturate(1.3);
+    box-shadow:
+        0 10px 28px rgba(3,12,60,.18),
+        inset 0 1px 0 rgba(255,255,255,.45),
+        inset 0 -1px 0 rgba(255,255,255,.08);
+    isolation: isolate;
+}
+.card::before { display: none; }
+.tint {
+    position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.08), rgba(255,255,255,0) 55%);
+}
+/* если лагает — открой index.html?noblur */
+.noblur .card { -webkit-backdrop-filter: none; backdrop-filter: none; --panel-tint: .12; }
 
-  /* ===== ЭКРАН 3 ===== */
-  #cSun { left: 14px; width: 372px; padding: 16px 20px; }
-  #sunSvg { position: absolute; left: 26px; top: 40px; width: 320px; height: 150px; overflow: visible; }
-  #sunT { position: absolute; left: 22px; right: 22px; bottom: 14px; display: flex; justify-content: space-between; font-size: 21px; font-weight: 500; letter-spacing: -0.3px; }
-  #sunT span { font-size: 11px; opacity: 0.6; font-weight: 600; display: block; letter-spacing: 0.5px; margin-bottom: 1px; }
-  #sunT div:last-child { text-align: right; }
-  #sunMid { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 12px; opacity: 0.7; line-height: 1.25; }
-  #sunMid b { display: block; font-size: 19px; font-weight: 500; opacity: 1; letter-spacing: -0.2px; }
+.abs { position: absolute; white-space: nowrap; }
+.vline { position: absolute; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.34) 20%, rgba(255,255,255,.34) 80%, rgba(255,255,255,0)); }
 
-  #cMoon { left: 400px; width: 196px; padding: 16px 20px; text-align: center; }
-  #moonSvg { position: absolute; left: 48px; top: 42px; width: 100px; height: 100px; overflow: visible; filter: drop-shadow(0 4px 6px rgba(5,20,60,0.3)); }
-  #moonN { position: absolute; left: 0; right: 0; top: 156px; font-size: 19px; font-weight: 500; }
-  #moonS { position: absolute; left: 0; right: 0; top: 186px; font-size: 13px; opacity: 0.7; }
+/* =====================================================================
+  СЛАЙД 1 — время (слева) и погода сейчас
+  ===================================================================== */
+#c1a { left: 28px;  top: 24px; width: 452px; height: 208px; }
 
-  #cWind { left: 610px; width: 196px; padding: 16px 20px; }
-  #compass { position: absolute; left: 32px; top: 46px; width: 132px; height: 132px; overflow: visible; }
-  #compS { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 13px; opacity: 0.75; white-space: nowrap; }
+#pin1 { left: 26px; top: 21px; width: 26px; height: 26px; }
+#pin1 svg { width: 100%; height: 100%; display: block; }
+#dateTxt, #city1 {
+    left: 60px; top: 18px;
+    font-family: var(--f-text);
+    font-size: 26px; font-weight: 500; line-height: 34px; letter-spacing: -.3px;
+    color: rgba(255,255,255,.96);
+}
+#timeTxt {
+    left: 20px; top: 56px;
+    font-family: var(--f-disp);
+    font-size: 128px; font-weight: 500; line-height: 128px; letter-spacing: -4px;
+    font-variant-numeric: tabular-nums;
+    -webkit-text-stroke: 1.2px #fff;
+    color: #fff;
+}
 
-  #tiles3 { position: absolute; left: 820px; top: 0; width: 318px; height: 256px; }
-  #tiles3 .tile { width: 154px; }
+#bigIc { left: 300px; top: 38px; width: 132px; height: 132px; filter: drop-shadow(0 10px 16px rgba(20,40,120,.30)); }
+#bigIc.sun { filter: drop-shadow(0 8px 18px rgba(255,150,0,.40)); }
+#bigIc svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#bigTemp {
+    left: 22px; top: 52px;
+    font-family: var(--f-disp);
+    font-size: 104px; font-weight: 400; line-height: 104px; letter-spacing: -3px;
+    font-variant-numeric: tabular-nums;
+    -webkit-text-stroke: .6px #fff;
+    color: #fff;
+}
+#bigCond {
+    left: 28px; top: 158px;
+    font-family: var(--f-text);
+    font-size: 24px; font-weight: 500; line-height: 30px; letter-spacing: -.2px;
+    color: rgba(255,255,255,.94);
+}
+
+/* =====================================================================
+  СЛАЙД 2 — прогноз по часам (с закатом/восходом)
+  Стекло: размытие того, что лежит под панелью (видео или небо).
+  Если лагает — открой index.html?noblur
+  ===================================================================== */
+#c2a { left: 28px; top: 24px; width: 1100px; height: 208px; }
+#c2in { position: absolute; left: 16px; top: 17px; width: 1067px; height: 173px; }
+#fcWrap { position: absolute; left: 450px; top: 0; width: 617px; height: 173px; }
+
+#pin { left: 22px; top: 13px; width: 26px; height: 26px; }
+#pin svg { width: 100%; height: 100%; display: block; }
+
+#hdr {
+    left: 56px; top: 10px;
+    font-family: var(--f-text);
+    font-size: 18px; font-weight: 600; line-height: 26px;
+    letter-spacing: .9px; text-transform: uppercase;
+    font-feature-settings: "case" 1, "kern" 1;
+    color: rgba(255,255,255,.88);
+}
+#city {
+    left: 20px; top: 35px;
+    font-family: var(--f-disp);
+    font-size: 58px; font-weight: 500; line-height: 62px;
+    letter-spacing: -1.8px;
+    color: #fff;
+}
+.hline {
+    position: absolute; left: 22px; width: 396px; height: 1px; top: 102px;
+    background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.38) 12%, rgba(255,255,255,.38) 88%, rgba(255,255,255,.04));
+}
+
+.stat { position: absolute; top: 108px; height: 54px; }
+.stat .ic { position: absolute; left: 0; top: 5px; width: 28px; height: 28px; }
+.stat .ic svg { width: 100%; height: 100%; display: block; }
+.stat .lb {
+    position: absolute; left: 33px; top: 0;
+    font-family: var(--f-text);
+    font-size: 14px; font-weight: 500; line-height: 18px; letter-spacing: -.15px;
+    color: rgba(255,255,255,.82); white-space: nowrap;
+}
+.stat .vl {
+    position: absolute; left: 33px; top: 17px;
+    font-family: var(--f-disp);
+    font-size: 28px; font-weight: 400; line-height: 34px; letter-spacing: -.8px;
+    font-variant-numeric: tabular-nums;
+    color: #fff; white-space: nowrap;
+}
+
+.fc {
+    position: absolute; top: 0; height: 173px; width: 123.4px;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 14px;
+}
+.fc .tm {
+    font-family: var(--f-text);
+    font-size: 24px; font-weight: 600; line-height: 30px; letter-spacing: -.3px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,.80);
+}
+.fc .wi { width: 62px; height: 62px; margin-top: 4px; filter: drop-shadow(0 6px 10px rgba(20,40,120,.28)); }
+.fc .wi.sun { filter: drop-shadow(0 6px 12px rgba(255,150,0,.30)); }
+.fc .wi svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.fc .tp {
+    margin-top: 2px;
+    font-family: var(--f-disp);
+    font-size: 44px; font-weight: 400; line-height: 48px; letter-spacing: -1.4px;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+/* подпись «Закат» / «Восход» вместо температуры (как в Apple Weather) */
+.fc .tp.ev {
+    font-family: var(--f-text);
+    font-size: 28px; font-weight: 500; letter-spacing: -.4px;
+}
+
+/* контраст текста на видео (чуть усилен, т.к. панели прозрачнее) */
+#dateTxt, #city1, #bigCond, #city, #hdr, .stat .lb, .stat .vl, .fc .tm, .fc .tp,
+#timeTxt, #bigTemp {
+    text-shadow: 0 1px 3px rgba(8,22,80,.5), 0 2px 14px rgba(8,22,80,.5);
+}
+
 </style>
+
+<style>
+/* ===== Apple-стиль: плотные тёмные панели вместо «стекла» ===== */
+:root { --panel-tint: .42; --panel-blur: 26px; }
+
+.card {
+    border-radius: 34px;
+    border: .5px solid rgba(255,255,255,.12);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 45%),
+        rgba(14,22,46, var(--panel-tint));
+    -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(1.5);
+    backdrop-filter: blur(var(--panel-blur)) saturate(1.5);
+    box-shadow: 0 14px 34px rgba(0,0,0,.22);
+}
+.tint { display: none; }
+.noblur .card { --panel-tint: .62; }
+
+/* чище типографика: без обводки, мягче тени */
+#timeTxt, #bigTemp { -webkit-text-stroke: 0; }
+#timeTxt { letter-spacing: -5px; }
+#dateTxt, #city1, #bigCond, #city, #hdr,
+.stat .lb, .stat .vl, .fc .tm, .fc .tp, #timeTxt, #bigTemp {
+    text-shadow: 0 1px 2px rgba(0,0,0,.22), 0 2px 12px rgba(0,0,0,.18);
+}
+#dateTxt, #city1 { color: rgba(255,255,255,.72); font-weight: 600; }
+#hdr { color: rgba(255,255,255,.60); letter-spacing: 1.1px; }
+.stat .lb { color: rgba(255,255,255,.62); }
+.fc .tm { color: rgba(255,255,255,.62); }
+
+/* тонкие разделители */
+.vline { background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.14) 25%, rgba(255,255,255,.14) 75%, rgba(255,255,255,0)); }
+.hline { background: rgba(255,255,255,.14); }
+</style>
+<style>
+/* ===== Слайд 1: одна широкая панель как на фото ===== */
+#c1a {
+    left: 28px; top: 36px; width: 1100px; height: 184px;
+    border-radius: 46px;
+    border: 1px solid rgba(255,255,255,.30);
+   background:
+    linear-gradient(135deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 70%, rgba(255,255,255,.04) 100%),
+    rgba(10,20,60,.12);
+    -webkit-backdrop-filter: blur(2px) saturate(1.15);
+    backdrop-filter: blur(2px) saturate(1.15);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.50),
+        inset 0 -1px 0 rgba(255,255,255,.10),
+        inset 0 0 28px rgba(255,255,255,.04),
+        0 10px 30px rgba(0,0,0,.10);
+}
+
+/* время */
+#timeTxt {
+    left: 44px; top: 14px; width: 340px; text-align: center;
+    font-size: 118px; line-height: 118px; font-weight: 500; letter-spacing: -3px;
+}
+#dateTxt {
+    left: 44px; top: 130px; width: 340px; text-align: center;
+    font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -.2px;
+    color: rgba(255,255,255,.92);
+}
+
+/* разделители */
+#vl1 { left: 410px; top: 32px; height: 120px; }
+#vl2 { left: 810px; top: 32px; height: 120px; }
+
+/* погода сейчас */
+#bigIc   { left: 436px; top: 28px; width: 124px; height: 124px; }
+#bigTemp { left: 572px; top: 24px; font-size: 92px; line-height: 96px; font-weight: 500; letter-spacing: -2px; }
+#bigCond {
+    left: 576px; top: 120px; font-size: 20px; line-height: 26px; font-weight: 500;
+    color: rgba(255,255,255,.62);
+}
+
+/* город + ощущается как */
+#pin1  { left: 846px; top: 58px; width: 28px; height: 28px; }
+#city1 {
+    left: 884px; top: 52px; font-size: 28px; line-height: 36px; font-weight: 600;
+    color: #fff;
+}
+#feels1 {
+    left: 846px; top: 100px; font-size: 22px; line-height: 28px; font-weight: 500;
+    color: rgba(255,255,255,.62);
+}
+
+
+/* ===== Слайд 2: то же прозрачное стекло, что на слайде 1 ===== */
+#c2a {
+    border-radius: 46px;
+    border: 1px solid rgba(255,255,255,.30);
+    background:
+        linear-gradient(135deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 70%, rgba(255,255,255,.04) 100%),
+        rgba(10,20,60,.12);
+    -webkit-backdrop-filter: blur(2px) saturate(1.15);
+    backdrop-filter: blur(2px) saturate(1.15);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.50),
+        inset 0 -1px 0 rgba(255,255,255,.10),
+        inset 0 0 28px rgba(255,255,255,.04),
+        0 10px 30px rgba(0,0,0,.10);
+}
+
+/* чтобы мелкий текст не сливался с прозрачным фоном */
+.stat .lb, .fc .tm, #hdr { color: rgba(255,255,255,.80); }
+#c2a { text-shadow: 0 1px 3px rgba(0,0,0,.35), 0 2px 16px rgba(0,0,0,.30); }
+
+
+
+/* ===== читаемость текста на светлом фоне ===== */
+
+/* 1. затемнение панелей */
+#c1a, #c2a {
+    background:
+        linear-gradient(135deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 70%, rgba(255,255,255,.02) 100%),
+        rgba(8,18,56,.34);
+    -webkit-backdrop-filter: blur(5px) saturate(1.15);
+    backdrop-filter: blur(5px) saturate(1.15);
+}
+/* 2. тень под текстом: плотнее и компактнее */
+#timeTxt, #dateTxt, #bigTemp, #bigCond, #city1, #feels1,
+#city, #hdr,
+.stat .lb, .stat .vl, .fc .tm, .fc .tp {
+    text-shadow: 0 1px 2px rgba(5,12,45,.55), 0 2px 10px rgba(5,12,45,.45), 0 0 24px rgba(5,12,45,.30);
+}
+
+/* 3. серые подписи светлее и плотнее */
+#bigCond, #feels1 { color: rgba(255,255,255,.88); font-weight: 600; }
+#dateTxt { color: rgba(255,255,255,.95); }
+
+
+
+.stat .lb, .fc .tm, #hdr { color: rgba(255,255,255,.92); }
+.fc .tm { font-weight: 600; }
+
+
+
+/* ===== Слайд 2: «Прогноз на 5 дней» как на референсе ===== */
+#c2a { left: 28px; top: 36px; width: 1100px; height: 184px; }
+
+.d5cal { position: absolute; left: 40px; top: 46px; width: 34px; height: 34px; opacity: .92; }
+.d5t {
+    position: absolute; left: 40px; top: 92px; white-space: nowrap;
+    font-family: var(--f-text); font-size: 22px; line-height: 28px; font-weight: 500;
+    color: rgba(255,255,255,.95);
+}
+.d5chev { position: absolute; left: 152px; top: 104px; width: 20px; height: 20px; opacity: .8; }
+
+#d5wrap { position: absolute; left: 200px; top: 0; width: 900px; height: 184px; }
+.d5c {
+    position: absolute; top: 0; width: 180px; height: 184px;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 20px;
+}
+.d5c .dn {
+    font-family: var(--f-text); font-size: 22px; line-height: 28px; font-weight: 500;
+    letter-spacing: -.2px; color: rgba(255,255,255,.92); white-space: nowrap;
+}
+.d5c .di { width: 68px; height: 68px; margin-top: 6px; filter: drop-shadow(0 6px 10px rgba(20,40,120,.28)); }
+.d5c .di.sun { filter: drop-shadow(0 6px 12px rgba(255,150,0,.30)); }
+.d5c .di svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.d5c .tt {
+    margin-top: 8px; display: flex; align-items: baseline; gap: 12px; white-space: nowrap;
+    font-family: var(--f-disp); font-variant-numeric: tabular-nums;
+}
+.d5c .hi { font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -1px; color: #fff; }
+.d5c .lo { font-size: 28px; line-height: 40px; font-weight: 400; letter-spacing: -.8px; color: rgba(255,255,255,.60); }
+
+.d5t, .d5c .dn, .d5c .hi, .d5c .lo {
+    text-shadow: 0 1px 2px rgba(5,12,45,.55), 0 2px 10px rgba(5,12,45,.45), 0 0 24px rgba(5,12,45,.30);
+}
+</style>
+
+
+
+
 </head>
 <body>
 
+<!-- ===================== ОБЩИЕ ИКОНКИ ===================== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <radialGradient id="gSun" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#fff3a6"/><stop offset="0.55" stop-color="#ffd60a"/><stop offset="1" stop-color="#ff9f0a"/></radialGradient>
-    <radialGradient id="gGlow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffe680" stop-opacity="0.6"/><stop offset="0.5" stop-color="#ffd60a" stop-opacity="0.2"/><stop offset="1" stop-color="#ffd60a" stop-opacity="0"/></radialGradient>
-    <radialGradient id="gGlowM" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#dfe8ff" stop-opacity="0.4"/><stop offset="1" stop-color="#dfe8ff" stop-opacity="0"/></radialGradient>
-    <linearGradient id="gPuffL" gradientUnits="userSpaceOnUse" x1="0" y1="14" x2="0" y2="80"><stop offset="0" stop-color="#ffffff"/><stop offset="0.6" stop-color="#f2f6fc"/><stop offset="1" stop-color="#d6e2f2"/></linearGradient>
-    <linearGradient id="gPuffD" gradientUnits="userSpaceOnUse" x1="0" y1="14" x2="0" y2="80"><stop offset="0" stop-color="#d3d9e4"/><stop offset="0.6" stop-color="#aab4c8"/><stop offset="1" stop-color="#8793ae"/></linearGradient>
-    <radialGradient id="gMoon" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fffef2"/><stop offset="0.6" stop-color="#e9ecf6"/><stop offset="1" stop-color="#b3bfdc"/></radialGradient>
-    <linearGradient id="gMoonI" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#fffdea"/><stop offset="1" stop-color="#c3cdea"/></linearGradient>
-    <linearGradient id="gBolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a0"/><stop offset="1" stop-color="#ffb300"/></linearGradient>
-    <linearGradient id="gArc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffb347"/><stop offset="0.5" stop-color="#ffe566"/><stop offset="1" stop-color="#ff8a4a"/></linearGradient>
-    <radialGradient id="gDot" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffffff"/><stop offset="0.4" stop-color="#ffe14a"/><stop offset="1" stop-color="#ff9f0a"/></radialGradient>
-    <linearGradient id="gFog" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/><stop offset="0.25" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="0.75" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.35"/></linearGradient>
-    <mask id="mMoon" maskUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120"><rect x="-60" y="-60" width="120" height="120" fill="#fff"/><circle cx="24" cy="-14" r="36" fill="#000"/></mask>
+    <radialGradient id="gSunDisc" cx="38%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#fff6b0"/>
+      <stop offset=".42" stop-color="#ffd21c"/>
+      <stop offset="1" stop-color="#ff9a00"/>
+    </radialGradient>
+    <radialGradient id="gSunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe27a" stop-opacity=".5"/>
+      <stop offset=".6" stop-color="#ffc21a" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#ffc21a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gSunHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe98a" stop-opacity=".85"/>
+      <stop offset=".45" stop-color="#ffcf3a" stop-opacity=".40"/>
+      <stop offset="1" stop-color="#ffb21a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gCloud" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".55" stop-color="#eaf1ff"/>
+      <stop offset="1" stop-color="#b3c6f0"/>
+    </linearGradient>
+    <linearGradient id="gCloudDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4dcf0"/>
+      <stop offset=".6" stop-color="#a9b6d8"/>
+      <stop offset="1" stop-color="#8393bd"/>
+    </linearGradient>
+    <linearGradient id="gMoon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9dbff"/>
+    </linearGradient>
+    <symbol id="ic-sun" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="49" fill="url(#gSunGlow)">
+        <animate attributeName="opacity" values=".6;1;.6" dur="5s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#ffc61f" stroke-width="4.2" stroke-linecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="40s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-opacity" values=".75;1;.75" dur="4s" repeatCount="indefinite"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(0.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(22.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(45.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(67.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(90.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(112.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(135.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(157.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(180.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(202.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(225.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(247.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(270.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(292.5 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(315.0 50 50)"/>
+        <line x1="50" y1="3" x2="50" y2="13" transform="rotate(337.5 50 50)"/>
+      </g>
+      <circle cx="50" cy="50" r="30" fill="url(#gSunDisc)"/>
+      <ellipse cx="41" cy="39" rx="12" ry="7.5" fill="#fff" opacity=".30" transform="rotate(-30 41 39)"/>
+    </symbol>
+
+    <symbol id="ic-sunBig" viewBox="0 0 100 100">
+      <circle cx="56" cy="44" r="58" fill="url(#gSunHalo)">
+        <animate attributeName="opacity" values=".7;1;.7" dur="6s" repeatCount="indefinite"/>
+      </circle>
+      <g fill="#ffd54a" fill-opacity=".75">
+        <animateTransform attributeName="transform" type="rotate" from="0 56 44" to="360 56 44" dur="50s" repeatCount="indefinite"/>
+        <animate attributeName="fill-opacity" values=".5;.85;.5" dur="4s" repeatCount="indefinite"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(30 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(60 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(90 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(120 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(150 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(180 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(210 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(240 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(270 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(300 56 44)"/>
+        <path d="M56,-8 L60,2 L56,9 L52,2 Z" transform="rotate(330 56 44)"/>
+      </g>
+      <circle cx="56" cy="44" r="30" fill="url(#gSunDisc)"/>
+      <circle cx="56" cy="44" r="30" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.5"/>
+      <ellipse cx="46" cy="32" rx="13" ry="8" fill="#fff" opacity=".38" transform="rotate(-30 46 32)"/>
+      <use href="#ic-cloud" x="0" y="50" width="58" height="58"/>
+    </symbol>
+
+    <symbol id="ic-cloud" viewBox="0 0 100 100">
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="-2 0;3 0;-2 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="9s" repeatCount="indefinite"/>
+        <ellipse cx="53" cy="82" rx="36" ry="5.5" fill="#7f90c8" opacity=".25"/>
+        <g fill="url(#gCloud)">
+          <circle cx="30" cy="62" r="17"/>
+          <circle cx="52" cy="48" r="23"/>
+          <circle cx="75" cy="60" r="18"/>
+          <rect x="22" y="60" width="62" height="20" rx="10"/>
+        </g>
+        <ellipse cx="46" cy="38" rx="14" ry="7" fill="#fff" opacity=".6" transform="rotate(-22 46 38)"/>
+        <path d="M26 75 Q52 83 82 75" stroke="#a3b8ea" stroke-width="3" fill="none" opacity=".45" stroke-linecap="round"/>
+      </g>
+    </symbol>
+
+    <symbol id="ic-cloudD" viewBox="0 0 100 100">
+      <g fill="url(#gCloudDark)" transform="translate(0 -12)">
+        <animateTransform attributeName="transform" type="translate" values="-2 -12;3 -12;-2 -12" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="9s" repeatCount="indefinite"/>
+        <circle cx="30" cy="62" r="17"/>
+        <circle cx="52" cy="48" r="23"/>
+        <circle cx="75" cy="60" r="18"/>
+        <rect x="22" y="60" width="62" height="20" rx="10"/>
+      </g>
+    </symbol>
+
+    <symbol id="ic-partly" viewBox="0 0 100 100">
+      <circle cx="40" cy="36" r="40" fill="url(#gSunGlow)">
+        <animate attributeName="opacity" values=".5;1;.5" dur="5s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#ffc61f" stroke-width="4" stroke-linecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 40 36" to="360 40 36" dur="40s" repeatCount="indefinite"/>
+        <line x1="40" y1="2" x2="40" y2="10"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(45 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(-45 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(-90 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(-135 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(90 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(135 40 36)"/>
+        <line x1="40" y1="2" x2="40" y2="10" transform="rotate(180 40 36)"/>
+      </g>
+      <circle cx="40" cy="36" r="22" fill="url(#gSunDisc)"/>
+      <ellipse cx="33" cy="28" rx="9" ry="5.5" fill="#fff" opacity=".3" transform="rotate(-30 33 28)"/>
+      <g transform="translate(14 18) scale(.86)">
+        <g>
+          <animateTransform attributeName="transform" type="translate" values="-3 0;4 0;-3 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" repeatCount="indefinite"/>
+          <g fill="url(#gCloud)">
+            <circle cx="30" cy="62" r="17"/>
+            <circle cx="52" cy="48" r="23"/>
+            <circle cx="75" cy="60" r="18"/>
+            <rect x="22" y="60" width="62" height="20" rx="10"/>
+          </g>
+          <ellipse cx="46" cy="38" rx="14" ry="7" fill="#fff" opacity=".6" transform="rotate(-22 46 38)"/>
+          <path d="M26 74 Q52 82 82 74" stroke="#a3b8ea" stroke-width="3" fill="none" opacity=".45" stroke-linecap="round"/>
+        </g>
+      </g>
+    </symbol>
+
+    <symbol id="ic-moon" viewBox="0 0 100 100">
+      <mask id="mMoon">
+        <rect width="100" height="100" fill="#fff"/>
+        <circle cx="66" cy="38" r="30" fill="#000"/>
+      </mask>
+      <circle cx="46" cy="52" r="34" fill="url(#gMoon)" mask="url(#mMoon)"/>
+      <g fill="#fff">
+        <circle cx="73" cy="30" r="2.3"><animate attributeName="opacity" values=".25;1;.25" dur="2.8s" repeatCount="indefinite"/></circle>
+        <circle cx="84" cy="52" r="1.7"><animate attributeName="opacity" values=".25;1;.25" dur="3.6s" begin="-1.2s" repeatCount="indefinite"/></circle>
+        <circle cx="62" cy="12" r="1.5"><animate attributeName="opacity" values=".25;1;.25" dur="3.1s" begin="-2s" repeatCount="indefinite"/></circle>
+      </g>
+    </symbol>
+
+    <symbol id="ic-partlyN" viewBox="0 0 100 100">
+      <mask id="mMoon2">
+        <rect width="100" height="100" fill="#fff"/>
+        <circle cx="50" cy="20" r="20" fill="#000"/>
+      </mask>
+      <circle cx="34" cy="32" r="24" fill="url(#gMoon)" mask="url(#mMoon2)"/>
+      <g fill="#fff">
+        <circle cx="62" cy="14" r="1.8"><animate attributeName="opacity" values=".25;1;.25" dur="3s" repeatCount="indefinite"/></circle>
+        <circle cx="76" cy="30" r="1.4"><animate attributeName="opacity" values=".25;1;.25" dur="3.7s" begin="-1.5s" repeatCount="indefinite"/></circle>
+      </g>
+      <g transform="translate(14 18) scale(.86)">
+        <g>
+          <animateTransform attributeName="transform" type="translate" values="-3 0;4 0;-3 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" repeatCount="indefinite"/>
+          <g fill="url(#gCloud)">
+            <circle cx="30" cy="62" r="17"/>
+            <circle cx="52" cy="48" r="23"/>
+            <circle cx="75" cy="60" r="18"/>
+            <rect x="22" y="60" width="62" height="20" rx="10"/>
+          </g>
+        </g>
+      </g>
+    </symbol>
+
+    <symbol id="ic-rain" viewBox="0 0 100 100">
+      <use href="#ic-cloudD" width="100" height="100"/>
+      <g stroke="#7fc3ff" stroke-width="5" stroke-linecap="round">
+        <line x1="30" y1="72" x2="26" y2="82">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-5 14" dur=".9s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" repeatCount="indefinite"/>
+        </line>
+        <line x1="44" y1="72" x2="40" y2="82">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-5 14" dur=".9s" begin="-.45s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" begin="-.45s" repeatCount="indefinite"/>
+        </line>
+        <line x1="58" y1="72" x2="54" y2="82">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-5 14" dur=".9s" begin="-.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" begin="-.2s" repeatCount="indefinite"/>
+        </line>
+        <line x1="72" y1="72" x2="68" y2="82">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-5 14" dur=".9s" begin="-.7s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" begin="-.7s" repeatCount="indefinite"/>
+        </line>
+      </g>
+    </symbol>
+
+    <symbol id="ic-drizzle" viewBox="0 0 100 100">
+      <use href="#ic-cloudD" width="100" height="100"/>
+      <g stroke="#a9d6ff" stroke-width="3.5" stroke-linecap="round">
+        <line x1="32" y1="72" x2="30" y2="78">
+          <animateTransform attributeName="transform" type="translate" values="0 -1;-3 15" dur="1.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.6;1" dur="1.6s" repeatCount="indefinite"/>
+        </line>
+        <line x1="47" y1="72" x2="45" y2="78">
+          <animateTransform attributeName="transform" type="translate" values="0 -1;-3 15" dur="1.6s" begin="-.8s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.6;1" dur="1.6s" begin="-.8s" repeatCount="indefinite"/>
+        </line>
+        <line x1="62" y1="72" x2="60" y2="78">
+          <animateTransform attributeName="transform" type="translate" values="0 -1;-3 15" dur="1.6s" begin="-.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.6;1" dur="1.6s" begin="-.4s" repeatCount="indefinite"/>
+        </line>
+        <line x1="75" y1="72" x2="73" y2="78">
+          <animateTransform attributeName="transform" type="translate" values="0 -1;-3 15" dur="1.6s" begin="-1.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.6;1" dur="1.6s" begin="-1.2s" repeatCount="indefinite"/>
+        </line>
+      </g>
+    </symbol>
+
+    <symbol id="ic-snow" viewBox="0 0 100 100">
+      <use href="#ic-cloudD" width="100" height="100"/>
+      <g fill="#fff">
+        <circle cx="30" cy="72" r="3.2">
+          <animateTransform attributeName="transform" type="translate" values="0 0;4 8;-2 15;2 22" dur="3.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="44" cy="72" r="3.6">
+          <animateTransform attributeName="transform" type="translate" values="0 0;-4 8;3 15;-1 22" dur="3.6s" begin="-1.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.6s" begin="-1.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="58" cy="72" r="3.2">
+          <animateTransform attributeName="transform" type="translate" values="0 0;4 8;-2 15;2 22" dur="3.4s" begin="-2.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.4s" begin="-2.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="72" cy="72" r="3.6">
+          <animateTransform attributeName="transform" type="translate" values="0 0;-4 8;3 15;-1 22" dur="3.8s" begin="-.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.8s" begin="-.6s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+    </symbol>
+
+    <symbol id="ic-storm" viewBox="0 0 100 100">
+      <use href="#ic-cloudD" width="100" height="100"/>
+      <circle cx="52" cy="54" r="36" fill="#cfe0ff" opacity="0">
+        <animate attributeName="opacity" values="0;0;.3;0;.22;0;0" keyTimes="0;.55;.6;.66;.72;.8;1" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#7fc3ff" stroke-width="4" stroke-linecap="round">
+        <line x1="30" y1="72" x2="27" y2="80">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-4 14" dur=".7s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".7s" repeatCount="indefinite"/>
+        </line>
+        <line x1="78" y1="72" x2="75" y2="80">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-4 14" dur=".7s" begin="-.35s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".7s" begin="-.35s" repeatCount="indefinite"/>
+        </line>
+      </g>
+      <path d="M54 62 L42 80 L52 80 L46 96 L64 74 L54 74 Z" fill="#ffd21c" stroke="#ff9a00" stroke-width="1.5" stroke-linejoin="round" opacity=".35">
+        <animate attributeName="opacity" values=".35;.35;1;.5;1;.35;.35" keyTimes="0;.55;.6;.66;.72;.8;1" dur="3s" repeatCount="indefinite"/>
+      </path>
+    </symbol>
+
+    <symbol id="ic-fog" viewBox="0 0 100 100">
+      <g stroke="#e3edff" stroke-width="6" stroke-linecap="round" opacity=".9">
+        <line x1="18" y1="34" x2="82" y2="34">
+          <animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="6s" repeatCount="indefinite"/>
+        </line>
+        <line x1="26" y1="50" x2="90" y2="50">
+          <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="7s" repeatCount="indefinite"/>
+        </line>
+        <line x1="14" y1="66" x2="78" y2="66">
+          <animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" begin="-3s" repeatCount="indefinite"/>
+        </line>
+        <line x1="24" y1="82" x2="86" y2="82">
+          <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="6.5s" begin="-2s" repeatCount="indefinite"/>
+        </line>
+      </g>
+    </symbol>
+
+    <!-- закат (солнце над горизонтом + стрелка вниз) и восход (стрелка вверх) -->
+    <symbol id="ic-sunset" viewBox="0 0 100 100">
+      <circle cx="50" cy="60" r="40" fill="url(#gSunGlow)">
+        <animate attributeName="opacity" values=".6;1;.6" dur="5s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#ffc61f" stroke-width="4" stroke-linecap="round">
+        <line x1="50" y1="14" x2="50" y2="24"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(-40 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(40 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(-75 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(75 50 60)"/>
+      </g>
+      <path d="M24 60 A26 26 0 0 1 76 60 Z" fill="url(#gSunDisc)"/>
+      <path d="M10 60 H90" stroke="#fff" stroke-opacity=".9" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M50 70 V90 M40 81 L50 91 L60 81" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-sunrise" viewBox="0 0 100 100">
+      <circle cx="50" cy="60" r="40" fill="url(#gSunGlow)">
+        <animate attributeName="opacity" values=".6;1;.6" dur="5s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#ffc61f" stroke-width="4" stroke-linecap="round">
+        <line x1="50" y1="14" x2="50" y2="24"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(-40 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(40 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(-75 50 60)"/>
+        <line x1="50" y1="14" x2="50" y2="24" transform="rotate(75 50 60)"/>
+      </g>
+      <path d="M24 60 A26 26 0 0 1 76 60 Z" fill="url(#gSunDisc)"/>
+      <path d="M10 60 H90" stroke="#fff" stroke-opacity=".9" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M50 90 V70 M40 79 L50 69 L60 79" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-pin" viewBox="0 0 24 24">
+      <path fill="#fff" fill-rule="evenodd" d="M12 1.5C7.9 1.5 4.6 4.8 4.6 8.9c0 5.4 7.4 13.6 7.4 13.6s7.4-8.2 7.4-13.6c0-4.1-3.3-7.4-7.4-7.4zm0 4.6a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6z"/>
+    </symbol>
+    <symbol id="ic-cal" viewBox="0 0 24 24">
+      <g fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3"/>
+        <path d="M3.5 10h17M8 3v4M16 3v4"/>
+      </g>
+      <g fill="#fff">
+        <circle cx="8.5" cy="14" r="1.1"/><circle cx="12" cy="14" r="1.1"/><circle cx="15.5" cy="14" r="1.1"/>
+        <circle cx="8.5" cy="17.3" r="1.1"/><circle cx="12" cy="17.3" r="1.1"/>
+      </g>
+    </symbol>
+    <symbol id="ic-thermo" viewBox="0 0 24 24">
+      <g fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
+        <path d="M13.8 14.6V5.2a1.8 1.8 0 1 0-3.6 0v9.4a3.6 3.6 0 1 0 3.6 0z"/>
+        <path d="M12 9v7.2"/>
+        <path d="M16.4 5.5h2M16.4 8.5h2M16.4 11.5h2" opacity=".7"/>
+      </g>
+      <circle cx="12" cy="17.1" r="1.5" fill="#fff"/>
+    </symbol>
+    <symbol id="ic-wind" viewBox="0 0 24 24">
+      <g fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
+        <path d="M2.5 8.5h10.5a2.7 2.7 0 1 0-2.7-2.7"/>
+        <path d="M2.5 12.5h15.3a2.8 2.8 0 1 1-2.8 2.8"/>
+        <path d="M2.5 16.5h6.6a2.4 2.4 0 1 1-2.4 2.4"/>
+      </g>
+    </symbol>
+    <symbol id="ic-drop" viewBox="0 0 24 24">
+      <g fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
+        <path d="M12 2.5s6.3 6.6 6.3 11.4a6.3 6.3 0 0 1-12.6 0c0-4.8 6.3-11.4 6.3-11.4z"/>
+        <path d="M9 14.6a3.2 3.2 0 0 0 2.6 2.7" opacity=".8"/>
+      </g>
+    </symbol>
   </defs>
 </svg>
 
-<div id="stage">
-  <canvas id="bg" width="1152" height="256"></canvas>
-  <video id="vid" muted playsinline loop></video>
-  <div id="wrap">
 
-    <!-- ЭКРАН 1 -->
-    <div id="s1" class="slide on">
-      <div id="cClock" class="rise d1">
-        <div id="dateRow"><span id="wday">&nbsp;</span><span id="dateTxt">&nbsp;</span></div>
-        <div id="time">--<span class="col">:</span>--</div>
-      </div>
+<!-- ===== ЗАПАСНОЕ SVG-НЕБО (показывается только когда нет подходящего видео) ===== -->
+<svg class="scene" id="bgSvg" viewBox="0 0 1156 256" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="skyDayG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f56b8"/><stop offset=".55" stop-color="#3f80d6"/><stop offset="1" stop-color="#6aa2e6"/></linearGradient>
+    <linearGradient id="skyDuskG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f2f88"/><stop offset=".5" stop-color="#6a64b8"/><stop offset=".85" stop-color="#e098a2"/><stop offset="1" stop-color="#ffb680"/></linearGradient>
+    <linearGradient id="skyNightG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050b2c"/><stop offset=".6" stop-color="#0f1f64"/><stop offset="1" stop-color="#26388a"/></linearGradient>
+    <linearGradient id="grayDG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c4172"/><stop offset="1" stop-color="#52678f"/></linearGradient>
+    <linearGradient id="grayNG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0e1438"/><stop offset="1" stop-color="#2a3360"/></linearGradient>
+    <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#d6e4ff" stop-opacity=".55"/><stop offset="1" stop-color="#d6e4ff" stop-opacity="0"/></radialGradient>
+    <filter id="b12" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="b4" x="-100%" y="-20%" width="300%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>
+    <g id="boltShape" fill="none" stroke-linejoin="miter" stroke-linecap="round">
+      <path d="M0,-6 L-9,44 L7,52 L-14,102 L4,108 L-22,168 L-8,174 L-26,262" stroke="#9db8ff" stroke-width="9" opacity=".55" filter="url(#b4)"/>
+      <path d="M0,-6 L-9,44 L7,52 L-14,102 L4,108 L-22,168 L-8,174 L-26,262" stroke="#fff" stroke-width="2.2"/>
+      <path d="M-14,102 L-34,126 L-30,138" stroke="#fff" stroke-width="1.3" opacity=".9"/>
+      <path d="M4,108 L22,134 L18,150" stroke="#fff" stroke-width="1.2" opacity=".85"/>
+      <path d="M-22,168 L-42,192" stroke="#fff" stroke-width="1" opacity=".8"/>
+    </g>
+    <filter id="fCloud" filterUnits="userSpaceOnUse" x="-200" y="-30" width="1556" height="316" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0050 0.0115" numOctaves="5" seed="11" result="noise"/>
+      <feColorMatrix id="cmCloud" in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  3.2 0 0 0 -1.2" result="cloud"/>
+      <feOffset in="cloud" dx="0" dy="7" result="off"/>
+      <feGaussianBlur in="off" stdDeviation="6" result="offb"/>
+      <feColorMatrix id="cmShade" in="offb" type="matrix" values="0 0 0 0 .4  0 0 0 0 .5  0 0 0 0 .7  0 0 0 .7 0" result="shade"/>
+      <feMerge><feMergeNode in="shade"/><feMergeNode in="cloud"/></feMerge>
+    </filter>
+  </defs>
+  <g id="sceneG">
+    <rect width="1156" height="256" fill="url(#skyNightG)"/>
+    <rect id="skyDusk" class="fx" width="1156" height="256" fill="url(#skyDuskG)" style="opacity:0"/>
+    <rect id="skyDay" class="fx" width="1156" height="256" fill="url(#skyDayG)"/>
+    <rect id="grayDay" class="fx" width="1156" height="256" fill="url(#grayDG)" style="opacity:0"/>
+    <rect id="grayNight" class="fx" width="1156" height="256" fill="url(#grayNG)" style="opacity:0"/>
+    <g id="fxStars" class="fx" fill="#fff" style="opacity:0"></g>
 
-      <div id="cNow" class="rise d2">
-        <div id="city">Тирасполь</div>
-        <div id="temp">--°</div>
-        <div id="desc">загрузка…</div>
-        <div id="range"></div>
-      </div>
+    <g id="fxShoot" class="fx" stroke="#fff" stroke-width="1.6" stroke-linecap="round" style="opacity:0">
+      <g class="sh" style="animation-duration:11s; animation-delay:-3s"><line x1="940" y1="18" x2="914" y2="31"/></g>
+      <g class="sh" style="animation-duration:17s; animation-delay:-11s"><line x1="330" y1="8" x2="306" y2="20"/></g>
+    </g>
 
-      <div id="cHours" class="card rise d3">
-        <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Почасовой прогноз</div>
-        <div id="hrs"></div>
-      </div>
-    </div>
+    <g id="fxMoon" class="fx" style="opacity:0">
+      <circle class="breathe" cx="514" cy="64" r="40" fill="url(#moonGlow)"/>
+      <circle cx="514" cy="64" r="12" fill="#eef3ff" opacity=".95"/>
+    </g>
 
-    <!-- ЭКРАН 2 -->
-    <div id="s2" class="slide">
-      <div id="cDays" class="card rise d1">
-        <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Прогноз на 5 дней</div>
-        <div id="drows"></div>
-      </div>
+    <g id="fxCloud"><g class="cs"><rect x="-200" y="-30" width="1556" height="316" fill="#000" filter="url(#fCloud)"/></g></g>
 
-      <div id="tiles">
-        <div class="card tile big rise d2" style="left:0;top:14px">
-          <div class="lbl"><svg viewBox="0 0 24 24" fill="#8fd4ff"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0013 0C18.5 10 12 2.5 12 2.5z"/></svg>Влажность</div>
-          <div class="mid"><div class="v" id="hum">--</div><div class="meter hum"><i id="humBar"></i></div></div>
-          <div class="s" id="humS">&nbsp;</div>
-        </div>
-        <div class="card tile big rise d3" style="left:187px;top:14px">
-          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="#ffb27a" stroke-width="2.4" stroke-linecap="round"><path d="M10 14.5V5a2 2 0 014 0v9.5a4 4 0 11-4 0z"/></svg>Ощущается</div>
-          <div class="mid"><div class="v" id="feels">--</div><div class="meter ghost"></div></div>
-          <div class="s" id="feelsS">&nbsp;</div>
-        </div>
-        <div class="card tile big rise d4" style="left:374px;top:14px">
-          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="#bfe6ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a3 3 0 10-3-3M3 12h16a3 3 0 11-3 3M3 16h8a3 3 0 11-3 3"/></svg>Ветер<span class="wd"><svg id="windArrow" viewBox="0 0 24 24"><path d="M12 3l6 16-6-4-6 4z" fill="#fff"/></svg></span></div>
-          <div class="mid"><div class="v" id="wind">--</div><div class="meter wnd"><i id="windBar"></i></div></div>
-          <div class="s" id="dir">&nbsp;</div>
-        </div>
-      </div>
-    </div>
+    <g id="fxBank" class="fx" style="opacity:0">
+      <g class="bk1" id="bankA" fill="#6d7fa8">
+        <ellipse cx="200" cy="30" rx="260" ry="30" filter="url(#b12)"/>
+        <ellipse cx="640" cy="12" rx="300" ry="26" filter="url(#b12)"/>
+        <ellipse cx="1020" cy="44" rx="240" ry="30" filter="url(#b12)"/>
+      </g>
+      <g class="bk2" id="bankB" fill="#6d7fa8">
+        <ellipse cx="420" cy="60" rx="280" ry="28" filter="url(#b12)"/>
+        <ellipse cx="860" cy="28" rx="300" ry="30" filter="url(#b12)"/>
+        <ellipse cx="60" cy="72" rx="220" ry="26" filter="url(#b12)"/>
+      </g>
+    </g>
 
-  </div>
+    <g id="fxFog" class="fx" style="opacity:0"><g class="fg" fill="#b4c2e4">
+      <ellipse cx="300" cy="190" rx="460" ry="40" opacity=".45" filter="url(#b12)"/>
+      <ellipse cx="860" cy="170" rx="520" ry="44" opacity=".45" filter="url(#b12)"/>
+      <ellipse cx="580" cy="110" rx="560" ry="46" opacity=".35" filter="url(#b12)"/>
+      <ellipse cx="580" cy="40" rx="560" ry="36" opacity=".30" filter="url(#b12)"/>
+    </g></g>
+    <g id="fxFog2" class="fx" style="opacity:0"><g class="fgr" fill="#c8d4f0">
+      <ellipse cx="160" cy="140" rx="420" ry="34" opacity=".35" filter="url(#b12)"/>
+      <ellipse cx="700" cy="215" rx="520" ry="34" opacity=".40" filter="url(#b12)"/>
+      <ellipse cx="1000" cy="80" rx="480" ry="36" opacity=".30" filter="url(#b12)"/>
+    </g></g>
+
+    <g id="fxRainA" class="fx" stroke="#c4dcff" stroke-width="1" stroke-linecap="round" style="opacity:0"></g>
+    <g id="fxRainB" class="fx" stroke="#c4dcff" stroke-width="1" stroke-linecap="round" style="opacity:0"></g>
+    <g id="fxRainC" class="fx" stroke="#d2e4ff" stroke-width="1.2" stroke-linecap="round" style="opacity:0"></g>
+    <g id="fxSplash" class="fx" style="opacity:0"></g>
+    <g id="fxSnow" class="fx" fill="#fff" style="opacity:0"></g>
+    <g id="fxSnow2" class="fx" fill="#fff" style="opacity:0"></g>
+    <g id="fxStorm" class="fx" style="opacity:0">
+      <g class="bolt" style="animation-duration:7s; animation-delay:-2s">
+        <rect width="1156" height="256" fill="#b9c8ff" opacity=".4"/>
+        <use href="#boltShape" transform="translate(360 0)"/>
+      </g>
+      <g class="bolt" style="animation-duration:9.3s; animation-delay:-6s">
+        <rect width="1156" height="256" fill="#b9c8ff" opacity=".4"/>
+        <use href="#boltShape" transform="translate(820 0) scale(-1 1)"/>
+      </g>
+      <g class="bolt" style="animation-duration:11.7s; animation-delay:-9s">
+        <rect width="1156" height="256" fill="#b9c8ff" opacity=".4"/>
+        <use href="#boltShape" transform="translate(1050 0)"/>
+      </g>
+    </g>
+  </g>
+</svg>
+
+<!-- ===== ВИДЕО-ФОН: два одинаковых слота. Один играет, второй готовится и плавно перекрывает ===== -->
+<video id="vidA" class="vid" muted playsinline preload="auto" disablepictureinpicture></video>
+<video id="vidB" class="vid" muted playsinline preload="auto" disablepictureinpicture></video>
+<div id="scrim"></div>
+<svg id="lightRain" viewBox="0 0 1156 256" preserveAspectRatio="none" stroke="#dbe8ff" stroke-linecap="round"></svg>
+
+
+<!-- =====================================================================
+    СЛАЙД 1 — время и погода сейчас
+    ===================================================================== -->
+<div class="slide on" id="slide1">
+
+<div class="card" id="c1a">
+    <div class="tint"></div>
+
+    <!-- слева: время и дата -->
+    <div class="abs" id="timeTxt">--:--</div>
+    <div class="abs" id="dateTxt">--</div>
+
+    <div class="vline" id="vl1"></div>
+
+    <!-- по центру: иконка, температура, состояние -->
+    <div class="abs sun" id="bigIc"><svg viewBox="0 0 100 100"><use id="bigIcUse" href="#ic-sunBig"/></svg></div>
+    <div class="abs" id="bigTemp">--°</div>
+    <div class="abs" id="bigCond">Загрузка…</div>
+
+    <div class="vline" id="vl2"></div>
+
+    <!-- справа: город и ощущается как -->
+    <div class="abs" id="pin1"><svg viewBox="0 0 24 24"><use href="#ic-pin"/></svg></div>
+    <div class="abs" id="city1">Тирасполь</div>
+    <div class="abs" id="feels1">Ощущается как --°</div>
+    
+
+    <!-- нужны для JS, не показываем -->
+    <div id="mmMin" style="display:none"></div>
+    <div id="mmMax" style="display:none"></div>
 </div>
 
+</div>
+
+
+<!-- =====================================================================
+    СЛАЙД 2 — прогноз по часам (со строкой «Закат»/«Восход»)
+    ===================================================================== -->
+<div class="slide" id="slide2">
+
+<div class="card" id="c2a">
+    <div class="tint"></div>
+
+    <svg class="d5cal" viewBox="0 0 24 24"><use href="#ic-cal"/></svg>
+    <div class="d5t">Прогноз<br>на 5 дней</div>
+    <svg class="d5chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+    <div class="vline" style="left:200px; top:32px; height:120px"></div>
+    <div id="d5wrap"></div>
+</div>
+
+</div>
+
+</div>
+
+
 <script>
+if (location.search.indexOf("noblur") > -1) document.documentElement.className += " noblur";
+
+/* =====================================================================
+  ФОН ОТ РЕАЛЬНОЙ ПОГОДЫ
+  Проверка без ожидания: index.html?bg=clear | cloud | overcast | rain | snow | storm | fog | dusk | night | nightrain | nightsnow
+  ===================================================================== */
+var curWind = 3, lastCd = 0;
+function $(id) { return document.getElementById(id); }
+function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+function setOp(id, v) { var e = $(id); if (e) e.style.opacity = Math.round(clamp01(v) * 100) / 100; }
+
+/* звёзды, дождь, снег — генерируем один раз */
 (function () {
-
-  var LAT = 46.84, LON = 29.58;
-  var REFRESH_MIN = 5, STALE_MIN = 45, SLIDE_SEC_DEFAULT = 12, FPS = 24;
-  var SW = 1152, SH = 256;
-  var FOG_VIS = 2000; /* видимость ниже этого значения (метры) = туман */
-
-  var params = {};
-  (location.search || '').replace(/^\?/, '').split('&').forEach(function (p) {
-    var kv = p.split('=');
-    if (kv[0]) params[kv[0]] = decodeURIComponent(kv[1] || '');
-  });
-  /* ?blur=0 — без размытия стекла и анимаций (для слабых устройств) */
-  if (params.blur === '0' || params.fx === '0') document.body.className = 'nofx';
-
-  var stage = document.getElementById('stage');
-  function fit() {
-    var w = window.innerWidth || SW, h = window.innerHeight || SH;
-    var s = Math.min(w / SW, h / SH);
-    stage.style.transform = 'scale(' + s + ')';
-    stage.style.left = Math.round((w - SW * s) / 2) + 'px';
-    stage.style.top = Math.round((h - SH * s) / 2) + 'px';
-  }
-  window.addEventListener('resize', fit); fit();
-
-  var DUMMY = { style: {}, className: '', innerHTML: '', textContent: '' };
-  function $(id) { return document.getElementById(id) || DUMMY; }
-  function setT(id, v) { var e = $(id); if (e) e.textContent = v; }
-  function pad(n) { return n < 10 ? '0' + n : '' + n; }
-
-  /* ---------- время (Кишинёв, с учётом летнего времени) ---------- */
-  function lastSunday(y, m) {
-    var d = new Date(Date.UTC(y, m + 1, 0, 1, 0, 0));
-    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-    return d.getTime();
-  }
-  function localNow() {
-    var now = Date.now(), y = new Date(now).getUTCFullYear();
-    var dst = now >= lastSunday(y, 2) && now < lastSunday(y, 9);
-    return new Date(now + (dst ? 3 : 2) * 3600000);
-  }
-  var DAYS = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
-  var DAYS_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
-  var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-
-  var lastMin = -1;
-  function tickClock() {
-    var d = localNow(), m = d.getUTCMinutes(), s = d.getUTCSeconds();
-    if (m !== lastMin) {
-      lastMin = m;
-      $('time').innerHTML = pad(d.getUTCHours()) + '<span class="col" id="colon">:</span>' + pad(m);
-      setT('wday', DAYS[d.getUTCDay()]);
-      setT('dateTxt', d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]);
+    var seed = 77;
+    function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    var i, h = "", x, y, r;
+    for (i = 0; i < 45; i++) {
+        x = rnd() * 1156; y = rnd() * 150; r = 0.4 + rnd() * 0.6;
+        h += '<circle class="tw" cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="' + r.toFixed(1) + '" style="animation-duration:' + (2 + rnd() * 4).toFixed(1) + 's;animation-delay:-' + (rnd() * 5).toFixed(1) + 's"/>';
     }
-    var c = $('colon'); if (c) c.className = 'col' + (s % 2 ? ' off' : '');
-  }
-  setInterval(tickClock, 1000); tickClock();
+    $("fxStars").innerHTML = h;
 
-  /* ---------- описание и иконки ---------- */
-  var DESC = {
-    0: 'Ясно', 1: 'Преимущественно ясно', 2: 'Переменная облачность', 3: 'Пасмурно',
-    45: 'Туман', 48: 'Изморозь', 51: 'Лёгкая морось', 53: 'Морось', 55: 'Сильная морось',
-    56: 'Ледяная морось', 57: 'Ледяная морось', 61: 'Небольшой дождь', 63: 'Дождь', 65: 'Сильный дождь',
-    66: 'Ледяной дождь', 67: 'Ледяной дождь', 71: 'Небольшой снег', 73: 'Снег', 75: 'Сильный снег',
-    77: 'Снежная крупа', 80: 'Ливень', 81: 'Ливень', 82: 'Сильный ливень',
-    85: 'Снегопад', 86: 'Сильный снегопад', 95: 'Гроза', 96: 'Гроза с градом', 99: 'Гроза с градом'
-  };
-  function categoryOf(code) {
-    if (code === 0 || code === 1) return 'clear';
-    if (code === 2 || code === 3) return 'clouds';
-    if (code === 45 || code === 48) return 'fog';
-    if (code >= 51 && code <= 67) return 'rain';
-    if (code >= 80 && code <= 82) return 'rain';
-    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
-    if (code >= 95) return 'storm';
-    return 'clouds';
-  }
-
-  /* туман ли по видимости (м) */
-  function isFogVis(v) { return typeof v === 'number' && v < FOG_VIS; }
-
-  /* подпись с учётом тумана: «Солнце и туман», «Дождь и туман» и т.д. */
-  function descOf(code, fog, cloudc, isDay) {
-    var c = categoryOf(code), cl = (typeof cloudc === 'number') ? cloudc : (c === 'fog' ? 70 : 50);
-    if (c === 'fog' || (fog && (c === 'clear' || c === 'clouds'))) {
-      if (cl < 25) return isDay ? 'Солнце и туман' : 'Ясно и туман';
-      if (cl < 70) return 'Туман с прояснениями';
-      return 'Туман';
-    }
-    if (fog && (c === 'rain' || c === 'snow' || c === 'storm')) {
-      var b = (DESC[code] || 'Осадки'); b = b.charAt(0).toLowerCase() + b.slice(1);
-      return b.charAt(0).toUpperCase() + b.slice(1) + ' и туман';
-    }
-    return DESC[code] || 'Облачно';
-  }
-
-  /* облако в стиле SF Symbols: чистая форма, мягкий вертикальный градиент */
-  function cloud(tx, ty, s, dark) {
-    var P = 'url(#' + (dark ? 'gPuffD' : 'gPuffL') + ')';
-    return '<g transform="translate(' + tx + ' ' + ty + ') scale(' + s + ')" fill="' + P + '">' +
-      '<rect x="4" y="56" width="124" height="22" rx="11"/>' +
-      '<circle cx="88" cy="46" r="26"/><circle cx="54" cy="40" r="28"/>' +
-      '<circle cx="30" cy="56" r="20"/><circle cx="110" cy="60" r="18"/>' +
-      '<circle cx="14" cy="64" r="14"/><circle cx="46" cy="62" r="16"/>' +
-      '<circle cx="78" cy="64" r="15"/></g>';
-  }
-  /* солнце с лучами */
-  function sunG(cx, cy, k) {
-    var rays = '', i, a, co, si;
-    for (i = 0; i < 12; i++) {
-      a = i * 30 * Math.PI / 180; co = Math.cos(a); si = Math.sin(a);
-      rays += '<line x1="' + (cx + co * 47 * k).toFixed(1) + '" y1="' + (cy + si * 47 * k).toFixed(1) +
-              '" x2="' + (cx + co * 64 * k).toFixed(1) + '" y2="' + (cy + si * 64 * k).toFixed(1) + '"/>';
-    }
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (80 * k) + '" fill="url(#gGlow)"/>' +
-      '<g stroke="#ffd60a" stroke-width="' + (8 * k) + '" stroke-linecap="round" opacity="0.95">' + rays + '</g>' +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (34 * k) + '" fill="url(#gSun)"/>';
-  }
-  function moonG(cx, cy, k) {
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (80 * k) + '" fill="url(#gGlowM)"/>' +
-      '<g transform="translate(' + cx + ' ' + cy + ') scale(' + k + ')"><g mask="url(#mMoon)"><circle cx="0" cy="0" r="42" fill="url(#gMoonI)"/>' +
-      '<circle cx="-14" cy="-8" r="6" fill="#9aa7c9" fill-opacity="0.3"/><circle cx="-6" cy="14" r="4" fill="#9aa7c9" fill-opacity="0.25"/></g></g>';
-  }
-  function wsvg(inner) { return '<svg class="wi" viewBox="0 0 200 160">' + inner + '</svg>'; }
-  function drops(list, color) {
-    var h = '', i;
-    for (i = 0; i < list.length; i++) h += '<path class="dropf" d="M' + list[i][0] + ' ' + list[i][1] + 'l-7 20" stroke="' + color + '" stroke-width="6" stroke-linecap="round" fill="none"/>';
-    return h;
-  }
-  /* туманные полосы поверх иконки (как в Apple Weather): 3 мягких линии разной длины */
-  function fogLines(y) {
-    return '<g fill="none" stroke="url(#gFog)" stroke-width="8" stroke-linecap="round">' +
-      '<path class="fogl" d="M26 ' + y + 'h132"/>' +
-      '<path class="fogl" d="M46 ' + (y + 16) + 'h128"/>' +
-      '<path class="fogl" d="M34 ' + (y + 32) + 'h104"/></g>';
-  }
-  /* иконка погоды. fog — есть ли туман (булево), cov — облачность % (необязательно) */
-  function iconOf(code, isDay, fog, cov) {
-    var c = categoryOf(code);
-    var body = function (x, y, k) { return isDay ? sunG(x, y, k) : moonG(x, y, k); };
-    var f = !!fog || c === 'fog';
-
-    if (!f) {
-      if (c === 'clear') {
-        if (code === 1) return wsvg(body(78, 70, 0.8) + cloud(76, 84, 0.75, false));
-        return wsvg(body(100, 80, 1));
-      }
-      if (c === 'clouds') {
-        if (code === 2) return wsvg(body(74, 62, 0.85) + cloud(34, 62, 1.1, false));
-        return wsvg(cloud(14, 20, 0.95, true) + cloud(58, 58, 1.1, false));
-      }
-      if (c === 'rain') return wsvg(cloud(28, 8, 1.2, true) + drops([[62, 114], [92, 118], [122, 114], [77, 138], [107, 140]], '#64d2ff'));
-      if (c === 'snow') return wsvg(cloud(28, 8, 1.2, false) + '<circle class="dropf" cx="58" cy="118" r="5.5" fill="#fff"/><circle class="dropf" cx="92" cy="128" r="5.5" fill="#fff"/><circle class="dropf" cx="126" cy="118" r="5.5" fill="#fff"/><circle class="dropf" cx="74" cy="146" r="5" fill="#fff"/><circle class="dropf" cx="110" cy="148" r="5" fill="#fff"/>');
-      if (c === 'storm') return wsvg(cloud(28, 6, 1.2, true) + '<path class="flk" d="M108 84L84 122H102L92 156L134 108H114L126 84Z" fill="url(#gBolt)" stroke="#ffd34d" stroke-width="1.5" stroke-linejoin="round"/>');
-      return wsvg(cloud(36, 40, 1.1, false));
-    }
-
-    /* ---- с туманом ---- */
-    if (c === 'rain') return wsvg(cloud(28, -6, 1.2, true) + drops([[62, 92], [92, 96], [122, 92], [77, 112], [107, 114]], '#64d2ff') + fogLines(112));
-    if (c === 'snow') return wsvg(cloud(28, -6, 1.2, false) +
-      '<circle class="dropf" cx="58" cy="96" r="5.5" fill="#fff"/><circle class="dropf" cx="92" cy="106" r="5.5" fill="#fff"/><circle class="dropf" cx="126" cy="96" r="5.5" fill="#fff"/>' + fogLines(112));
-    if (c === 'storm') return wsvg(cloud(28, -8, 1.2, true) +
-      '<g transform="translate(0 -26)"><path class="flk" d="M108 84L84 122H102L92 156L134 108H114L126 84Z" fill="url(#gBolt)" stroke="#ffd34d" stroke-width="1.5" stroke-linejoin="round"/></g>' + fogLines(116));
-
-    /* туман + ясно / переменно / пасмурно — выбираем по облачности */
-    var cl = (typeof cov === 'number') ? cov : (c === 'clear' ? 10 : (c === 'clouds' ? (code === 2 ? 50 : 90) : 30));
-    if (cl < 25) return wsvg(body(100, 62, 1) + fogLines(104));
-    if (cl < 70) return wsvg(body(76, 44, 0.85) + cloud(34, 34, 1.1, false) + fogLines(114));
-    return wsvg(cloud(14, 0, 0.95, true) + cloud(58, 34, 1.1, false) + fogLines(114));
-  }
-
-  var weather = { cat: 'clouds', day: true, ok: false, code: 3, cloud: 30, wind: 3, wdir: 0, sr: '07:00', ss: '17:00', fogF: false, temp: null };
-  var dataTs = 0;
-  function weatherFresh() { return weather.ok && (!!params.demo || Date.now() - dataTs < STALE_MIN * 60000); }
-
-  var DIRS = ['С','ССВ','СВ','ВСВ','В','ВЮВ','ЮВ','ЮЮВ','Ю','ЮЮЗ','ЮЗ','ЗЮЗ','З','ЗСЗ','СЗ','ССЗ'];
-  function signed(n) { n = Math.round(n); return (n < 0 ? '\u2212' + (-n) : '' + n) + '°'; }
-
-  function plus(n) { n = Math.round(n); return n > 0 ? '+' + n + '°' : (n < 0 ? '\u2212' + (-n) + '°' : '0°'); }
-  /* hr[i] = [code, temp, isDay, 'HH:MM', precipProb, fog, cloud] */
-  function renderHours(hr) {
-    var h = '', i;
-    for (i = 0; i < hr.length; i++) {
-      h += '<div class="hc"><span class="t">' + (i === 0 ? 'Сейчас' : hr[i][3].slice(0, 2)) + '</span>' + iconOf(hr[i][0], hr[i][2], hr[i][5], hr[i][6]) +
-        '<b>' + signed(hr[i][1]) + '</b><span class="pp">' + (hr[i][4] >= 20 ? Math.round(hr[i][4] / 10) * 10 + '%' : '') + '</span></div>';
-    }
-    $('hrs').innerHTML = h;
-  }
-
-  /* ---------- цвет полоски по реальной температуре (как в Apple Weather) ---------- */
-  var TCOL = [
-    [-15, [96, 124, 255]],  /* сильный мороз  */
-    [-5,  [72, 168, 255]],  /* мороз          */
-    [2,   [100, 210, 255]], /* около нуля     */
-    [9,   [132, 226, 160]], /* прохладно      */
-    [15,  [236, 226, 72]],  /* тепло          */
-    [22,  [255, 178, 24]],  /* жарко          */
-    [30,  [255, 112, 40]],  /* очень жарко    */
-    [38,  [255, 69, 58]]    /* зной           */
-  ];
-  function tcol(t) {
-    var i, a, b, f;
-    if (t <= TCOL[0][0]) return TCOL[0][1];
-    if (t >= TCOL[TCOL.length - 1][0]) return TCOL[TCOL.length - 1][1];
-    for (i = 0; i < TCOL.length - 1; i++) {
-      a = TCOL[i]; b = TCOL[i + 1];
-      if (t >= a[0] && t <= b[0]) {
-        f = (t - a[0]) / (b[0] - a[0]);
-        return [a[1][0] + (b[1][0] - a[1][0]) * f, a[1][1] + (b[1][1] - a[1][1]) * f, a[1][2] + (b[1][2] - a[1][2]) * f];
-      }
-    }
-    return TCOL[0][1];
-  }
-  function rgbs(c) { return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
-  /* градиент таблетки: цвета берутся от температуры внутри диапазона [lo..hi] */
-  function barGrad(lo, hi) {
-    var span = Math.max(0.01, hi - lo), st = [rgbs(tcol(lo)) + ' 0%'], i, t;
-    for (i = 0; i < TCOL.length; i++) {
-      t = TCOL[i][0];
-      if (t > lo && t < hi) st.push(rgbs(TCOL[i][1]) + ' ' + ((t - lo) / span * 100).toFixed(1) + '%');
-    }
-    st.push(rgbs(tcol(hi)) + ' 100%');
-    return 'linear-gradient(90deg,' + st.join(',') + ')';
-  }
-
-  /* dy[k] = ['YYYY-MM-DD', code, tmax, tmin, fog, cloud] */
-  function renderDays(dy) {
-    var mn = 99, mx = -99, k, h = '', p, label, a, b, w, span, dot, fr;
-    for (k = 0; k < dy.length; k++) { if (dy[k][3] < mn) mn = dy[k][3]; if (dy[k][2] > mx) mx = dy[k][2]; }
-    span = Math.max(1, mx - mn);
-    for (k = 0; k < dy.length; k++) {
-      p = dy[k][0].split('-');
-      label = (k === 0) ? 'Сегодня' : DAYS_SHORT[new Date(+p[0], +p[1] - 1, +p[2]).getDay()];
-      a = (dy[k][3] - mn) / span * 100; b = (dy[k][2] - mn) / span * 100;
-      w = Math.max(8, b - a); if (a + w > 100) a = 100 - w;
-      /* белая точка «сейчас» — только у сегодняшнего дня, внутри таблетки */
-      dot = '';
-      if (k === 0 && typeof weather.temp === 'number') {
-        fr = Math.max(0, Math.min(1, (weather.temp - dy[k][3]) / Math.max(0.5, dy[k][2] - dy[k][3])));
-        dot = '<u style="left:' + (a + w * fr).toFixed(1) + '%"></u>';
-      }
-      h += '<div class="row"><span class="dn">' + label + '</span>' + iconOf(dy[k][1], true, dy[k][4], dy[k][5]) +
-        '<span class="lo">' + signed(dy[k][3]) + '</span><div class="bar"><i style="left:' + a.toFixed(1) + '%;width:' + w.toFixed(1) + '%;background:' + barGrad(dy[k][3], dy[k][2]) + '"></i>' + dot + '</div>' +
-        '<span class="hi">' + signed(dy[k][2]) + '</span></div>';
-    }
-    $('drows').innerHTML = h;
-  }
-  function uvText(u) { return u < 3 ? 'Низкий' : u < 6 ? 'Умеренный' : u < 8 ? 'Высокий' : u < 11 ? 'Очень высокий' : 'Экстремальный'; }
-  function humText(h) { return h < 30 ? 'Сухо' : h < 60 ? 'Комфортно' : h < 80 ? 'Влажно' : 'Очень влажно'; }
-  function visText(km) { return km >= 10 ? 'Отличная' : km >= 4 ? 'Хорошая' : km >= 1 ? 'Ограниченная' : 'Очень низкая'; }
-  function dewText(d) { return d < 10 ? 'Сухой воздух' : d < 16 ? 'Комфортно' : d < 20 ? 'Душновато' : 'Очень душно'; }
-  function gustText(g) { return g < 6 ? 'Слабые' : g < 12 ? 'Умеренные' : g < 18 ? 'Сильные' : 'Штормовые'; }
-
-  /* ---------- дуга солнца ---------- */
-  function hm(s) { var p = (s || '').split(':'); return p.length > 1 ? (+p[0]) + (+p[1]) / 60 : NaN; }
-  function sstep(e0, e1, x) { var t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); }
-  function renderSun() {
-    var d = localNow(), h = d.getUTCHours() + d.getUTCMinutes() / 60;
-    var a = hm(weather.sr), b = hm(weather.ss);
-    if (isNaN(a)) a = 7; if (isNaN(b)) b = 17;
-    var raw = (h - a) / (b - a), up = raw >= 0 && raw <= 1, p = Math.max(0, Math.min(1, raw));
-    var x = 160 - 140 * Math.cos(Math.PI * p), y = 120 - 100 * Math.sin(Math.PI * p);
-    var len = b - a, lh = Math.floor(len), lm = Math.round((len - lh) * 60);
-    if (lm === 60) { lh++; lm = 0; }
-    setT('dayLen', lh + ' ч ' + lm + ' мин');
-    var s = '';
-    s += '<line x1="-6" y1="120" x2="326" y2="120" stroke="#fff" stroke-opacity="0.3" stroke-width="1.5" stroke-linecap="round"/>';
-    s += '<path d="M20 120 A140 100 0 0 1 300 120" fill="none" stroke="#fff" stroke-opacity="0.2" stroke-width="3" stroke-dasharray="1 8" stroke-linecap="round"/>';
-    s += '<path d="M20 120 A140 100 0 0 1 300 120" pathLength="100" fill="none" stroke="url(#gArc)" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + (p * 100).toFixed(2) + ' 100"/>';
-    if (up) {
-      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="20" fill="url(#gGlow)"/>';
-      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="9" fill="url(#gDot)" stroke="#fff" stroke-opacity="0.8" stroke-width="1.5"/>';
-    } else {
-      var nx = raw < 0 ? 20 : 300;
-      s += '<circle cx="' + nx + '" cy="120" r="6" fill="#fff" fill-opacity="0.45"/>';
-    }
-    $('sunSvg').innerHTML = s;
-  }
-
-  /* ---------- фаза луны ---------- */
-  function renderMoon() {
-    var syn = 29.530588853, age = (((Date.now() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000) % syn + syn) % syn;
-    var p = age / syn, ill = (1 - Math.cos(2 * Math.PI * p)) / 2, r = 40;
-    var k = Math.cos(2 * Math.PI * p), rx = (r * Math.abs(k)).toFixed(2), waxing = p < 0.5;
-    var s1 = waxing ? 1 : 0, s2 = waxing ? (k > 0 ? 0 : 1) : (k < 0 ? 0 : 1);
-    var lit = '<path d="M0 ' + (-r) + ' A' + r + ' ' + r + ' 0 0 ' + s1 + ' 0 ' + r + ' A' + rx + ' ' + r + ' 0 0 ' + s2 + ' 0 ' + (-r) + ' Z" fill="url(#gMoon)"/>';
-    var s = '<circle r="60" fill="url(#gGlowM)"/>' +
-      '<circle r="' + r + '" fill="#1b2748" fill-opacity="0.75"/>' +
-      '<circle r="' + r + '" fill="none" stroke="#fff" stroke-opacity="0.16" stroke-width="1.2"/>' +
-      lit +
-      '<g fill="#8f9bbd" fill-opacity="0.32"><circle cx="-14" cy="-12" r="7"/><circle cx="12" cy="-18" r="4.5"/><circle cx="8" cy="12" r="9"/><circle cx="-18" cy="14" r="4"/><circle cx="22" cy="2" r="3.5"/></g>';
-    $('moonSvg').innerHTML = s;
-    var n = (p < 0.03 || p > 0.97) ? 'Новолуние' : p < 0.22 ? 'Молодая луна' : p < 0.28 ? 'Первая четверть' : p < 0.47 ? 'Растущая' : p < 0.53 ? 'Полнолуние' : p < 0.72 ? 'Убывающая' : p < 0.78 ? 'Последняя четверть' : 'Старая луна';
-    setT('moonN', n);
-    setT('moonS', 'Освещена на ' + Math.round(ill * 100) + '%');
-  }
-
-  /* ---------- компас ветра ---------- */
-  function renderCompass(wdir, wind) {
-    var s = '', i, a, r1, r2, x1, y1, x2, y2, big;
-    s += '<circle cx="60" cy="60" r="57" fill="rgba(0,0,0,0.12)" stroke="#fff" stroke-opacity="0.22" stroke-width="1.2"/>';
-    for (i = 0; i < 72; i++) {
-      a = i * 5 * Math.PI / 180; big = i % 9 === 0;
-      r1 = 57; r2 = big ? 49 : (i % 3 === 0 ? 52 : 54);
-      x1 = 60 + Math.sin(a) * r1; y1 = 60 - Math.cos(a) * r1; x2 = 60 + Math.sin(a) * r2; y2 = 60 - Math.cos(a) * r2;
-      s += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#fff" stroke-opacity="' + (big ? 0.75 : 0.3) + '" stroke-width="' + (big ? 1.6 : 1) + '"/>';
-    }
-    s += '<g fill="#fff" font-size="10" font-weight="600" text-anchor="middle">' +
-      '<text x="60" y="44" fill="#ff8a6a">С</text><text x="60" y="82" opacity="0.75">Ю</text><text x="100" y="63.5" opacity="0.75">В</text><text x="20" y="63.5" opacity="0.75">З</text></g>';
-    s += '<g transform="rotate(' + Math.round(wdir) + ' 60 60)">' +
-      '<path d="M60 8 L66 24 L60 20 L54 24 Z" fill="#fff"/>' +
-      '<line x1="60" y1="24" x2="60" y2="34" stroke="#fff" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/></g>';
-    s += '<text x="60" y="68" fill="#fff" font-size="22" font-weight="500" text-anchor="middle" letter-spacing="-0.5">' + Math.round(wind) + '</text>';
-    s += '<text x="60" y="94" fill="#fff" fill-opacity="0.6" font-size="9" font-weight="600" text-anchor="middle">м/с</text>';
-    $('compass').innerHTML = s;
-    setT('compS', 'Ветер ' + DIRS[Math.round(wdir / 22.5) % 16] + ' · ' + Math.round(wdir) + '°');
-  }
-
-  /* последний аргумент fogNow — туман в данный момент (по видимости) */
-  function applyWeather(code, temp, feels, hum, wind, isDay, precip, cloudc, uv, pres, wdir, tmax, tmin, sr, ss, hr, dy, vis, dew, psum, ppmax, gust, fogNow) {
-    var c0 = categoryOf(code);
-    if ((c0 === 'rain' || c0 === 'snow') && typeof precip === 'number' && precip < 0.1) {
-      code = (cloudc >= 85) ? 3 : (cloudc >= 40 ? 2 : (cloudc >= 15 ? 1 : 0));
-    }
-    weather.cat = categoryOf(code); weather.day = isDay; weather.ok = true;
-    weather.code = code; weather.cloud = cloudc; weather.wind = wind; weather.wdir = wdir; weather.sr = sr; weather.ss = ss;
-    weather.temp = temp;
-    weather.fogF = !!fogNow || weather.cat === 'fog';
-
-    setT('temp', signed(temp));
-    setT('desc', descOf(code, !!fogNow, cloudc, isDay));
-    $('range').innerHTML = '<b>' + plus(tmax) + '</b> &nbsp; <b style="opacity:.65">' + plus(tmin) + '</b>';
-    setT('feels', signed(feels));
-    setT('feelsS', Math.abs(feels - temp) < 1.5 ? 'Как на термометре' : 'На ' + Math.abs(Math.round(feels - temp)) + '° ' + (feels < temp ? 'холоднее' : 'теплее'));
-    setT('hum', Math.round(hum) + '%'); setT('humS', humText(hum));
-    $('humBar').style.width = Math.max(0, Math.min(100, Math.round(hum))) + '%';
-    $('windBar').style.width = Math.max(4, Math.min(100, wind / 15 * 100)) + '%';
-    $('windArrow').style.transform = 'rotate(' + Math.round(wdir + 180) + 'deg)';
-    $('wind').innerHTML = Math.round(wind) + '<small>м/с</small>';
-    setT('dir', 'Направление: ' + DIRS[Math.round(wdir / 22.5) % 16]);
-    setT('pres', Math.round(pres * 0.750062));
-    setT('uv', Math.round(uv)); setT('uvS', uvText(uv));
-    $('uvDot').style.left = Math.min(100, uv / 11 * 100) + '%';
-    setT('sr', sr); setT('ss', ss); setT('sr3', sr); setT('ss3', ss);
-    if (hr && hr.length) renderHours(hr);
-    if (dy && dy.length) renderDays(dy);
-
-    if (typeof vis === 'number') {
-      var km = vis / 1000;
-      $('vis').innerHTML = (km >= 10 ? Math.round(km) : km.toFixed(1)) + '<small>км</small>'; setT('visS', visText(km));
-    }
-    if (typeof dew === 'number') { setT('dew', signed(dew)); setT('dewS', dewText(dew)); }
-    if (typeof psum === 'number') {
-      $('psum').innerHTML = (psum < 10 ? psum.toFixed(1) : Math.round(psum)) + '<small>мм</small>';
-      var pp = typeof ppmax === 'number' ? ppmax : 0;
-      $('ppBar').style.width = Math.min(100, pp) + '%';
-      setT('ppS', 'Вероятность до ' + Math.round(pp) + '%');
-    }
-    if (typeof gust === 'number') { $('gust').innerHTML = Math.round(gust) + '<small>м/с</small>'; setT('gustS', gustText(gust)); }
-    renderCompass(wdir, wind);
-    renderSun(); renderMoon();
-  }
-  setInterval(function () { if (weather.ok) renderSun(); }, 30000);
-  setInterval(function () { if (weather.ok) renderMoon(); }, 600000);
-
-  var CACHE_KEY = 'ws_weather_v10';
-  function saveCache(arr) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), v: arr })); } catch (e) {} }
-  function loadCache() {
-    try { var o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); if (o && o.v && Date.now() - o.ts < 60 * 60000) return o; } catch (e) {}
-    return null;
-  }
-
-  /* DEMO: [код, темп, ощущается, влажность, ветер, туман?, облачность%]
-     ?demo=clear|clouds|fog|rain|snow|storm  — обычные
-     ?demo=fogsun|fogcloud|fograin|fogsnow|fogstorm — комбинации с туманом (&night=1 для ночи) */
-  var DEMO = {
-    clear: [0, 18, 17, 45, 3], clouds: [3, 9, 7, 74, 4], fog: [45, 4, 2, 95, 1], rain: [63, 11, 9, 88, 6], snow: [73, -3, -7, 82, 5], storm: [95, 20, 21, 80, 9],
-    fogsun: [45, 4, 2, 96, 1, true, 10], fogcloud: [45, 5, 3, 96, 1, true, 50],
-    fograin: [61, 6, 5, 97, 1, true, 95], fogsnow: [71, -1, -3, 96, 2, true, 90], fogstorm: [95, 16, 17, 94, 4, true, 100]
-  };
-  function isoDate(d) { return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
-
-  function loadWeather() {
-    if (params.demo && DEMO[params.demo]) {
-      var d = DEMO[params.demo], hr = [], dy = [], i, base = localNow(), codes = [d[0], 2, 3, 61, 0], tw = [0, 1, 3, 2, 0, -1];
-      var dfog = !!d[5], dcl = d[6];
-      for (i = 0; i < 6; i++) hr.push([i % 3 === 2 ? 2 : d[0], d[1] + tw[i], params.night !== '1', pad((base.getUTCHours() + i) % 24) + ':00', i === 3 ? 40 : 0, dfog && i < 4, dcl]);
-      for (i = 0; i < 5; i++) dy.push([isoDate(new Date(base.getTime() + i * 86400000)), codes[i], d[1] + 2 - i, d[1] - 3 - i, dfog && i < 3, dcl]);
-      dataTs = Date.now();
-      applyWeather(d[0], d[1], d[2], d[3], d[4], params.night !== '1', undefined, dcl, 3, 1021, 220, d[1] + 2, d[1] - 3, '06:47', '16:43', hr, dy, dfog ? 800 : 18000, d[1] - 4, 1.2, 40, d[4] + 4, dfog);
-      return;
-    }
-    var cached = loadCache();
-    if (cached && !weather.ok) {
-      dataTs = cached.ts;
-      applyWeather.apply(null, cached.v);
-      if (Date.now() - cached.ts < REFRESH_MIN * 60000) { setTimeout(loadWeather, REFRESH_MIN * 60000 - (Date.now() - cached.ts)); return; }
-    }
-    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
-      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day,precipitation,cloud_cover,uv_index,pressure_msl,wind_direction_10m,wind_gusts_10m,visibility,dew_point_2m' +
-      '&hourly=temperature_2m,weather_code,is_day,precipitation_probability,visibility,cloud_cover' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max' +
-      '&wind_speed_unit=ms&timezone=Europe%2FChisinau&forecast_days=5';
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true); xhr.timeout = 15000;
-    xhr.onload = function () {
-      try {
-        var j = JSON.parse(xhr.responseText), c = j.current, dl = j.daily, hh = j.hourly;
-        var ct = String(c.time).slice(0, 13), ci = 0, k, m, hr = [], dy = [];
-        for (k = 0; k < hh.time.length; k++) { if (hh.time[k].slice(0, 13) >= ct) { ci = k; break; } }
-        for (k = 0; k < 6 && ci + k < hh.time.length; k++) {
-          hr.push([hh.weather_code[ci + k], hh.temperature_2m[ci + k], hh.is_day[ci + k] === 1, hh.time[ci + k].slice(11, 16),
-                   hh.precipitation_probability ? (hh.precipitation_probability[ci + k] || 0) : 0,
-                   hh.visibility ? isFogVis(hh.visibility[ci + k]) : false,
-                   hh.cloud_cover ? hh.cloud_cover[ci + k] : undefined]);
+    function rain(id, n) {
+        var out = "", k;
+        for (k = 0; k < n; k++) {
+            x = rnd() * 1190;
+            out += '<line class="rd" x1="' + x.toFixed(0) + '" y1="0" x2="' + (x - 3).toFixed(0) + '" y2="' + (14 + rnd() * 8).toFixed(0) + '" opacity="' + (0.18 + rnd() * 0.27).toFixed(2) + '" style="animation-duration:' + (0.6 + rnd() * 0.4).toFixed(2) + 's;animation-delay:-' + (rnd() * 1.2).toFixed(2) + 's"/>';
         }
-        /* по дням: туман, если днём (9–18 ч) не менее 3 часов с плохой видимостью; облачность — среднее за день */
-        for (k = 0; k < dl.time.length && k < 5; k++) {
-          var fc = 0, cs = 0, cn = 0, hrn;
-          for (m = 0; m < hh.time.length; m++) {
-            if (hh.time[m].slice(0, 10) !== dl.time[k]) continue;
-            hrn = +hh.time[m].slice(11, 13);
-            if (hrn < 9 || hrn > 18) continue;
-            if (hh.visibility && isFogVis(hh.visibility[m])) fc++;
-            if (hh.cloud_cover && typeof hh.cloud_cover[m] === 'number') { cs += hh.cloud_cover[m]; cn++; }
-          }
-          dy.push([dl.time[k], dl.weather_code[k], dl.temperature_2m_max[k], dl.temperature_2m_min[k], fc >= 3, cn ? Math.round(cs / cn) : undefined]);
-        }
-        var arr = [c.weather_code, c.temperature_2m, c.apparent_temperature, c.relative_humidity_2m, c.wind_speed_10m, c.is_day === 1,
-                   c.precipitation, c.cloud_cover, c.uv_index, c.pressure_msl, c.wind_direction_10m,
-                   dl.temperature_2m_max[0], dl.temperature_2m_min[0], dl.sunrise[0].slice(11, 16), dl.sunset[0].slice(11, 16), hr, dy,
-                   c.visibility, c.dew_point_2m, dl.precipitation_sum[0], dl.precipitation_probability_max[0], c.wind_gusts_10m, isFogVis(c.visibility)];
-        dataTs = Date.now();
-        applyWeather.apply(null, arr);
-        saveCache(arr);
-        setTimeout(loadWeather, REFRESH_MIN * 60000);
-      } catch (e) { failed(); }
-    };
-    xhr.onerror = failed; xhr.ontimeout = failed;
-    xhr.send();
-  }
-  function failed() {
-    if (!weather.ok) { setT('temp', '--°'); setT('desc', 'нет данных о погоде'); }
-    setTimeout(loadWeather, 60000);
-  }
-
-  /* ================================================================
-     НЕБО в стиле Apple Weather: Canvas 2D, мягкие облака-спрайты,
-     градиентное небо, солнечное свечение, дождь, снег, молнии.
-     Без WebGL: лёгкое и надёжное. Рисуется в уменьшенном разрешении.
-     ================================================================ */
-  var cv = $('bg'), vid = $('vid'), ctx = cv.getContext('2d'), hasGL = !!ctx;
-  var SKY = { cover: 0.3, dark: 0, rain: 0, snow: 0, fog: 0, day: 1, dusk: 0, sun: 1, sx: 0.4, sy: 0.7, drift: 0, flash: 0, bx: 0.5 };
-  var nextFlash = Date.now() + 4000, t0 = Date.now(), lastT = 0, bolt = [], branch = [];
-
-  function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
-  function mixc(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
-  function rgba(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a === undefined ? 1 : Math.max(0, a).toFixed(3)) + ')'; }
-  var seed = 7;
-  function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
-
-  /* палитры неба: [верх, низ] */
-  var PAL = {
-    dc: [[18, 90, 212], [98, 172, 244]],  /* ясный день  */
-    dO: [[84, 122, 178], [150, 178, 214]],  /* пасмурно    */
-    dS: [[62, 76, 104], [118, 134, 164]],      /* гроза/ливень*/
-    nc: [[18, 32, 84], [62, 98, 178]],       /* ясная ночь  */
-    nO: [[34, 46, 88], [82, 104, 150]],
-    nS: [[24, 30, 56], [62, 74, 112]]
-  };
-
-  /* облако: мягкие «пуфы» + вертикальная тень, как в погоде iOS */
-  var PUFFS = [[60, 94, 34], [104, 74, 46], [160, 62, 54], [216, 74, 46], [262, 94, 34], [96, 102, 30], [160, 100, 40], [224, 102, 30]];
-  function makeCloud(top, mid, bot) {
-    var c = document.createElement('canvas'), g, i, p, r, l;
-    c.width = 320; c.height = 140; g = c.getContext('2d');
-    for (i = 0; i < PUFFS.length; i++) {
-      p = PUFFS[i]; r = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], p[2]);
-      r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.55, 'rgba(255,255,255,0.9)'); r.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = r; g.fillRect(p[0] - p[2], p[1] - p[2], p[2] * 2, p[2] * 2);
+        $(id).innerHTML = out;
     }
-    g.globalCompositeOperation = 'source-atop';
-    l = g.createLinearGradient(0, 20, 0, 128);
-    l.addColorStop(0, rgba(top)); l.addColorStop(0.5, rgba(mid)); l.addColorStop(1, rgba(bot));
-    g.fillStyle = l; g.fillRect(0, 0, 320, 140);
-    return c;
-  }
-  var SPR = {
-    light: makeCloud([255, 255, 255], [243, 248, 255], [170, 191, 220]),
-    dark: makeCloud([142, 152, 172], [98, 108, 130], [58, 66, 88]),
-    night: makeCloud([66, 80, 124], [38, 48, 82], [18, 24, 52])
-  };
+    rain("fxRainA", 22);
+    rain("fxRainB", 28);
 
-  var NCL = 12, CL = [], STARS = [], DROPS = [], FLAKES = [], n, w;
-  for (n = 0; n < NCL; n++) { w = 340 + rnd() * 420; CL.push({ w: w, h: w * 0.4375, y: -50 + rnd() * 170, x: rnd() * (SW + w), sp: 0.45 + w / 900, a: 0.8 + rnd() * 0.2 }); }
-  for (n = 0; n < 80; n++) STARS.push([rnd() * SW, rnd() * SH * 0.85, 0.8 + rnd() * 1.3, rnd() * 6.28]);
-  for (n = 0; n < 170; n++) { w = rnd(); DROPS.push({ x: rnd() * (SW + 80), y: rnd() * SH, l: 10 + w * 20, v: 380 + w * 500, z: w }); }
-  for (n = 0; n < 90; n++) FLAKES.push({ x: rnd() * SW, y: rnd() * SH, r: 1.2 + rnd() * 2.4, v: 18 + rnd() * 40, ph: rnd() * 6.28 });
-
-  function glow(x, y, r, stops) {
-    var g = ctx.createRadialGradient(x, y, 0, x, y, r), i;
-    for (i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1]);
-    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
-  }
-  function makeBolt(x0) {
-    var p = [[x0, -5]], x = x0, y = -5;
-    while (y < SH * 0.68) { y += 14 + Math.random() * 18; x += (Math.random() - 0.5) * 34; p.push([x, y]); }
-    var k = 2 + Math.floor(Math.random() * 3), bx = p[k][0], by = p[k][1], q = [[bx, by]];
-    while (by < SH * 0.5) { by += 12 + Math.random() * 14; bx += 10 + Math.random() * 18; q.push([bx, by]); }
-    branch = q; return p;
-  }
-  function line(pts, wd, col) {
-    var i; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    ctx.lineWidth = wd; ctx.strokeStyle = col; ctx.stroke();
-  }
-
-  function render(t, dt) {
-    var s = cv.width / SW, d = SKY.day, nk = 1 - d, cov = SKY.cover, i, c, a, x, y, k, g;
-    ctx.setTransform(s, 0, 0, s, 0, 0);
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-
-    /* --- небо --- */
-    var cf = clamp(cov * 1.2, 0, 1);
-    var dT = mixc(mixc(PAL.dc[0], PAL.dO[0], cf), PAL.dS[0], SKY.dark), dB = mixc(mixc(PAL.dc[1], PAL.dO[1], cf), PAL.dS[1], SKY.dark);
-    var nT = mixc(mixc(PAL.nc[0], PAL.nO[0], cf), PAL.nS[0], SKY.dark), nB = mixc(mixc(PAL.nc[1], PAL.nO[1], cf), PAL.nS[1], SKY.dark);
-    var top = mixc(nT, dT, d), bot = mixc(nB, dB, d), haze = mixc([40, 46, 58], [172, 180, 190], d);
-    if (SKY.fog > 0.01) { top = mixc(top, haze, SKY.fog * 0.6); bot = mixc(bot, haze, SKY.fog * 0.75); }
-    if (SKY.dusk > 0.01) { bot = mixc(bot, [255, 150, 92], SKY.dusk * 0.5 * (1 - cov * 0.6)); top = mixc(top, [88, 90, 156], SKY.dusk * 0.22); }
-    g = ctx.createLinearGradient(0, 0, 0, SH); g.addColorStop(0, rgba(top)); g.addColorStop(1, rgba(bot));
-    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
-
-    /* --- звёзды и луна --- */
-    k = nk * (1 - cov * 0.9);
-    if (k > 0.02) {
-      ctx.fillStyle = '#fff';
-      for (i = 0; i < STARS.length; i++) {
-        c = STARS[i]; ctx.globalAlpha = k * (0.55 + 0.45 * Math.sin(t * 1.6 + c[3])) * (1 - c[1] / SH * 0.5);
-        ctx.fillRect(c[0], c[1], c[2], c[2]);
-      }
-      ctx.globalAlpha = 1;
+    var sn = "", k;
+    for (k = 0; k < 40; k++) {
+        sn += '<g class="sw" style="animation-duration:' + (2.5 + rnd() * 3).toFixed(1) + 's;animation-delay:-' + (rnd() * 5).toFixed(1) + 's">'
+            + '<circle class="sn" cx="' + (rnd() * 1156).toFixed(0) + '" cy="0" r="' + (0.9 + rnd() * 1).toFixed(1) + '" opacity="' + (0.5 + rnd() * 0.35).toFixed(2) + '" style="animation-duration:' + (5 + rnd() * 5).toFixed(1) + 's;animation-delay:-' + (rnd() * 9).toFixed(1) + 's"/></g>';
     }
-    k = nk * (1 - cov * 0.65);
-    if (k > 0.02) {
-      x = 0.72 * SW; y = 82;
-      glow(x, y, 170, [[0, 'rgba(170,192,255,' + (0.30 * k) + ')'], [0.35, 'rgba(150,175,245,' + (0.10 * k) + ')'], [1, 'rgba(150,175,245,0)']]);
-      ctx.globalAlpha = k; g = ctx.createRadialGradient(x - 8, y - 8, 2, x, y, 28);
-      g.addColorStop(0, '#fffff2'); g.addColorStop(1, '#cdd5ec');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 27, 0, 6.2832); ctx.fill();
-      ctx.fillStyle = 'rgba(140,152,185,0.28)';
-      ctx.beginPath(); ctx.arc(x - 8, y - 5, 5, 0, 6.2832); ctx.arc(x + 9, y + 8, 6.5, 0, 6.2832); ctx.arc(x + 6, y - 12, 3, 0, 6.2832); ctx.fill();
-      ctx.globalAlpha = 1;
+    $("fxSnow").innerHTML = sn;
+
+    sn = "";
+    for (k = 0; k < 16; k++) {
+        sn += '<g class="sw" style="animation-duration:' + (3.5 + rnd() * 3).toFixed(1) + 's;animation-delay:-' + (rnd() * 6).toFixed(1) + 's">'
+            + '<circle class="sn" cx="' + (rnd() * 1156).toFixed(0) + '" cy="0" r="' + (2.2 + rnd() * 1.3).toFixed(1) + '" opacity="' + (0.3 + rnd() * 0.25).toFixed(2) + '" style="animation-duration:' + (9 + rnd() * 5).toFixed(1) + 's;animation-delay:-' + (rnd() * 13).toFixed(1) + 's"/></g>';
     }
+    $("fxSnow2").innerHTML = sn;
 
-    /* --- солнце: большое мягкое свечение --- */
-    var px = SKY.sx * SW, py = (1 - SKY.sy) * SH, sI = SKY.sun * d * (1 - cov * 0.75);
-    if (sI > 0.02) {
-      glow(px, py, 430, [[0, 'rgba(255,248,215,' + (0.88 * sI) + ')'], [0.07, 'rgba(255,240,175,' + (0.55 * sI) + ')'], [0.3, 'rgba(255,226,140,' + (0.17 * sI) + ')'], [1, 'rgba(255,220,120,0)']]);
-      glow(px, py, 52, [[0, 'rgba(255,255,248,' + sI + ')'], [0.55, 'rgba(255,251,226,' + (0.85 * sI) + ')'], [1, 'rgba(255,244,200,0)']]);
+    var rc = "";
+    for (k = 0; k < 36; k++) {
+        x = rnd() * 1240;
+        rc += '<line class="rd2" x1="' + x.toFixed(0) + '" y1="0" x2="' + (x - 8).toFixed(0) + '" y2="' + (20 + rnd() * 8).toFixed(0) + '" opacity="' + (0.25 + rnd() * 0.3).toFixed(2) + '" style="animation-duration:' + (0.42 + rnd() * 0.2).toFixed(2) + 's;animation-delay:-' + (rnd() * 0.8).toFixed(2) + 's"/>';
     }
+    $("fxRainC").innerHTML = rc;
 
-    /* --- облака: свет -> серые -> ночные --- */
-    var wn = nk, wd = clamp(SKY.dark + clamp((cov - 0.55) * 0.9, 0, 0.45), 0, 1) * (1 - wn), cnt = cov * NCL;
-    for (i = 0; i < NCL; i++) {
-      c = CL[i]; a = clamp(cnt - i, 0, 1) * c.a; if (a < 0.02) continue;
-      x = ((c.x + SKY.drift * c.sp) % (SW + c.w)) - c.w;
-      if (wn < 0.9) { ctx.globalAlpha = a; ctx.drawImage(SPR.light, x, c.y, c.w, c.h); }
-      if (wd > 0.03) { ctx.globalAlpha = a * wd; ctx.drawImage(SPR.dark, x, c.y, c.w, c.h); }
-      if (wn > 0.03) { ctx.globalAlpha = a * wn; ctx.drawImage(SPR.night, x, c.y, c.w, c.h); }
+    var sp = "";
+    for (k = 0; k < 26; k++) {
+        sp += '<ellipse class="spl" cx="' + (rnd() * 1156).toFixed(0) + '" cy="' + (238 + rnd() * 16).toFixed(0) + '" rx="3" ry="1" fill="none" stroke="#d6e8ff" stroke-width=".8" style="animation-duration:' + (0.7 + rnd() * 0.6).toFixed(2) + 's;animation-delay:-' + (rnd() * 1.3).toFixed(2) + 's"/>';
     }
-    ctx.globalAlpha = 1;
-
-    /* свет солнца сквозь облака и тёплый закат */
-    ctx.globalCompositeOperation = 'lighter';
-    if (sI > 0.02 && cov > 0.2) glow(px, py, 220, [[0, 'rgba(255,236,170,' + (0.30 * sI * cov * (1 - SKY.dark)) + ')'], [1, 'rgba(255,220,120,0)']]);
-    if (SKY.dusk > 0.02) glow(px, py, 520, [[0, 'rgba(255,125,55,' + (0.24 * SKY.dusk * (1 - cov * 0.5)) + ')'], [1, 'rgba(255,110,50,0)']]);
-    ctx.globalCompositeOperation = 'source-over';
-
-    /* --- туман --- */
-    if (SKY.fog > 0.01) {
-      ctx.fillStyle = rgba(haze, SKY.fog * 0.45); ctx.fillRect(0, 0, SW, SH);
-      for (i = 0; i < 3; i++) { ctx.globalAlpha = SKY.fog * 0.4; ctx.drawImage(SPR.light, ((i * 520 + SKY.drift * (0.6 + i * 0.3)) % (SW + 900)) - 900, 90 + i * 45, 900, 150); }
-      ctx.globalAlpha = 1;
-    }
-
-    /* --- дождь: тонкие наклонные штрихи --- */
-    if (SKY.rain > 0.02) {
-      var nd = Math.floor(DROPS.length * SKY.rain), L, ls = [[0, 0.4, 0.2, 1], [0.4, 0.7, 0.3, 1.3], [0.7, 1.01, 0.45, 1.6]];
-      for (L = 0; L < 3; L++) {
-        ctx.beginPath();
-        for (i = 0; i < nd; i++) {
-          c = DROPS[i]; if (c.z < ls[L][0] || c.z >= ls[L][1]) continue;
-          c.y += c.v * dt; c.x -= c.v * 0.22 * dt;
-          if (c.y > SH + 30) { c.y -= SH + 60; c.x = rnd() * (SW + 80); }
-          if (c.x < -40) c.x += SW + 80;
-          ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + c.l * 0.22, c.y - c.l);
-        }
-        ctx.lineWidth = ls[L][3]; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(205,222,255,' + (ls[L][2] * Math.min(1, SKY.rain)) + ')'; ctx.stroke();
-      }
-    }
-
-    /* --- снег --- */
-    if (SKY.snow > 0.02) {
-      var nf = Math.floor(FLAKES.length * SKY.snow);
-      ctx.fillStyle = 'rgba(255,255,255,0.88)'; ctx.beginPath();
-      for (i = 0; i < nf; i++) {
-        c = FLAKES[i]; c.y += c.v * dt; c.x += Math.sin(t * 0.9 + c.ph) * 0.5 - 0.2;
-        if (c.y > SH + 6) { c.y = -6; c.x = rnd() * SW; } if (c.x < -6) c.x = SW + 6; if (c.x > SW + 6) c.x = -6;
-        ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, 6.2832);
-      }
-      ctx.fill();
-    }
-
-    /* затемнение для читаемости белого текста */
-    g = ctx.createLinearGradient(0, 0, 0, SH); g.addColorStop(0, 'rgba(0,12,44,0.02)'); g.addColorStop(1, 'rgba(0,12,44,0.12)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
-
-    /* --- молния --- */
-    if (SKY.flash > 0.01) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(118,138,235,' + (SKY.flash * 0.28) + ')'; ctx.fillRect(0, 0, SW, SH);
-      ctx.globalCompositeOperation = 'source-over';
-      if (SKY.flash > 0.3 && bolt.length) {
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        line(bolt, 8, 'rgba(180,200,255,' + (SKY.flash * 0.35) + ')'); line(branch, 5, 'rgba(180,200,255,' + (SKY.flash * 0.25) + ')');
-        line(bolt, 2, 'rgba(255,255,255,' + SKY.flash + ')'); line(branch, 1.3, 'rgba(255,255,255,' + (SKY.flash * 0.9) + ')');
-      }
-    }
-  }
-
-  var THEMES = {
-    clear_day: ['#1a6ee0', '#8fd2ff'], clear_night: ['#142a6e', '#4a78c8'],
-    clouds_day: ['#3a63a6', '#8db4e0'], clouds_night: ['#1c2f64', '#5a7cb8'],
-    fog: ['#566f93', '#aebfd4'], rain: ['#46618c', '#8aa6cc'],
-    snow: ['#294670', '#8eaed4'], storm: ['#34406a', '#6a7aa6']
-  };
-  function themeKey() {
-    var c = weather.cat;
-    if (c === 'clear') return weather.day ? 'clear_day' : 'clear_night';
-    if (c === 'clouds') return weather.day ? 'clouds_day' : 'clouds_night';
-    return c;
-  }
-  var fbKey = '';
-  function fallbackBg() {
-    cv.style.display = 'none';
-    var k = themeKey(); if (k === fbKey) return; fbKey = k;
-    var th = THEMES[k] || THEMES.clouds_day;
-    stage.style.background = 'linear-gradient(180deg,' + th[0] + ',' + th[1] + ')';
-  }
-
-  function dayState() {
-    var d = localNow(), h = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
-    var a = hm(weather.sr), b = hm(weather.ss);
-    if (isNaN(a)) a = 7; if (isNaN(b)) b = 17;
-    return {
-      day: sstep(a - 0.5, a + 0.5, h) * (1 - sstep(b - 0.5, b + 0.5, h)),
-      dusk: Math.max(0, 1 - Math.abs(h - a) / 1.2, 1 - Math.abs(h - b) / 1.2),
-      p: Math.max(0, Math.min(1, (h - a) / (b - a)))
-    };
-  }
-
-  function targets() {
-    var c = weather.cat, code = weather.code, cl = (typeof weather.cloud === 'number') ? weather.cloud / 100 : 0.3;
-    var T = { cover: 0.2, dark: 0, rain: 0, snow: 0, fog: 0, sun: 1 };
-    if (c === 'clear') { T.cover = (code === 1 ? 0.22 : 0.03) + 0.15 * cl; }
-    else if (c === 'clouds') { T.cover = code === 2 ? 0.5 : 0.86; T.dark = code === 3 ? 0.25 : 0; T.sun = code === 2 ? 1 : 0.5; }
-    /* туман: при малой облачности солнце просвечивает сквозь дымку («солнце и туман») */
-    else if (c === 'fog') { T.cover = 0.3 + 0.5 * cl; T.fog = 1; T.dark = 0.1 * cl; T.sun = 0.25 + 0.6 * (1 - cl); }
-    else if (c === 'rain') { T.cover = 0.95; T.dark = 0.6; T.rain = (code === 51 || code === 53 || code === 61) ? 0.55 : 1; T.sun = 0; }
-    else if (c === 'snow') { T.cover = 0.85; T.dark = 0.15; T.snow = (code === 71) ? 0.6 : 1; T.sun = 0.1; }
-    else if (c === 'storm') { T.cover = 1; T.dark = 0.9; T.rain = 1; T.sun = 0; }
-    /* туман вместе с другой погодой (ясно+туман, дождь+туман ...): добавляем дымку */
-    if (weather.fogF && c !== 'fog') {
-      T.fog = (c === 'rain' || c === 'snow' || c === 'storm') ? 0.5 : 0.8;
-      if (c === 'clear' || c === 'clouds') T.sun = Math.min(T.sun, 0.6);
-    }
-    if (params.demo || !weather.ok) { T.day = weather.day ? 1 : 0; T.dusk = 0; }
-    else { var ds = dayState(); T.day = ds.day; T.dusk = ds.dusk; }
-    return T;
-  }
-  function sunPos() {
-    var p = dayState().p;
-    return [0.12 + 0.76 * p, 0.28 + 0.52 * Math.sin(Math.PI * p)];
-  }
-
-  /* качество: 0 — максимум; само понижается, если контроллер не тянет. Принудительно: ?q=0..3 */
-  var QL = [0.75, 0.55, 0.4, 0.3];
-  var qLevel = Math.max(0, Math.min(3, parseInt(params.q, 10) || 0)), qFixed = params.q !== undefined, slowN = 0, slowSum = 0;
-  function applyQ() { cv.width = Math.round(SW * QL[qLevel]); cv.height = Math.round(SH * QL[qLevel]); }
-  applyQ();
-
-  function frame(ts) {
-    requestAnimationFrame(frame);
-    if (ts - lastT < 1000 / FPS) return;
-    var gap = ts - lastT;
-    if (!qFixed && lastT && gap < 1000) {
-      slowSum += gap; slowN++;
-      if (slowN >= 45) { if (slowSum / slowN > 1.6 * 1000 / FPS && qLevel < 3) { qLevel++; applyQ(); } slowN = 0; slowSum = 0; }
-    }
-    var dt = Math.min(0.2, (ts - lastT) / 1000 || 0.04); lastT = ts;
-    if (!hasGL) { fallbackBg(); return; }
-
-    var T = targets(), k = 1 - Math.exp(-dt / 1.6), key;
-    for (key in T) SKY[key] += (T[key] - SKY[key]) * k;
-    var sp = sunPos(); SKY.sx = sp[0]; SKY.sy = sp[1];
-    SKY.drift += dt * (5 + (weather.wind || 3) * 2.2);
-
-    var now = Date.now();
-    if (weather.cat === 'storm' && now > nextFlash) {
-      SKY.flash = 1; SKY.bx = 0.12 + Math.random() * 0.76; bolt = makeBolt(SKY.bx * SW); nextFlash = now + 4000 + Math.random() * 5000;
-      if (Math.random() < 0.5) setTimeout(function () { SKY.flash = 0.9; }, 140);
-    }
-    SKY.flash *= 0.88; if (SKY.flash < 0.01) SKY.flash = 0;
-    render(((now - t0) / 1000) % 6000, dt);
-  }
-
-  /* необязательно: настоящее видео неба. Файлы в папку bg/ и ?video=1 */
-  var vidKey = '';
-  function updateVideo() {
-    if (params.video !== '1') return;
-    var key = themeKey(); if (key === vidKey) return; vidKey = key;
-    vid.style.opacity = 0;
-    vid.muted = true;
-    vid.onerror = function () { vid.style.opacity = 0; };
-    vid.oncanplay = function () { vid.style.opacity = 1; var p = vid.play(); if (p && p.catch) p.catch(function () {}); };
-    vid.src = 'bg/' + key + '.mp4';
-  }
-  setInterval(updateVideo, 2000);
-
-  /* ---------- смена экранов (3 штуки) ---------- */
-  var SLIDE_SEC = parseInt(params.sec, 10) || SLIDE_SEC_DEFAULT;
-  var slides = [$('s1'), $('s2')], TOTAL = slides.length, cur = 0, updateReady = false;
-  function showSlide(i) {
-    cur = i;
-    for (var j = 0; j < slides.length; j++) slides[j].className = (j === i) ? 'slide on' : 'slide';
-    try { localStorage.setItem('ws_last_slide', String(i)); } catch (e) {}
-  }
-  if (params.slide === 'time') showSlide(0);
-  else if (params.slide === 'weather') showSlide(1);
-  else {
-    var start = 0;
-    try { start = ((parseInt(localStorage.getItem('ws_last_slide'), 10) || 0) + 1) % TOTAL; } catch (e) {}
-    if (start > 0 && !weather.ok && !loadCache()) start = 0;
-    showSlide(start);
-    setInterval(function () {
-      var next = (cur + 1) % TOTAL;
-      if (next > 0 && !weatherFresh()) next = 0;
-      if (next === 0 && updateReady && navigator.onLine !== false) { location.replace(location.pathname + '?v=' + Date.now()); return; }
-      showSlide(next);
-    }, SLIDE_SEC * 1000);
-  }
-
-  requestAnimationFrame(frame);
-  loadWeather();
-
-  var bootDay = localNow().getUTCDate();
-  setInterval(function () {
-    var d = localNow();
-    if (d.getUTCDate() !== bootDay && d.getUTCHours() >= 4 && navigator.onLine !== false && weatherFresh()) location.reload();
-  }, 60000);
-
-  function checkUpdate() {
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', location.pathname + '?chk=' + Date.now(), true); xhr.timeout = 15000;
-      xhr.onload = function () {
-        try {
-          if (xhr.status !== 200) return;
-          var lm = xhr.getResponseHeader('Last-Modified'); if (!lm) return;
-          var srv = new Date(lm).getTime(), mine = new Date(document.lastModified).getTime();
-          if (isNaN(srv) || isNaN(mine)) return;
-          var seen = localStorage.getItem('ws_upd');
-          if (Math.abs(srv - mine) > 2000 && seen !== lm) { localStorage.setItem('ws_upd', lm); updateReady = true; }
-        } catch (e) {}
-      };
-      xhr.send();
-    } catch (e) {}
-  }
-  setTimeout(checkUpdate, 60000);
-  setInterval(checkUpdate, 30 * 60000);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+    $("fxSplash").innerHTML = sp;
 })();
+
+/* лёгкий дождь: редкие тонкие капли поверх пасмурного видео */
+(function () {
+    var out = "", k, x, len;
+    for (k = 0; k < 55; k++) {
+        x = Math.random() * 1190;
+        len = 9 + Math.random() * 7;
+        out += '<line class="rd" x1="' + x.toFixed(0) + '" y1="0" x2="' + (x - 2).toFixed(0) + '" y2="' + len.toFixed(0)
+            + '" stroke-width="' + (0.8 + Math.random() * 0.5).toFixed(1) + '" opacity="' + (0.18 + Math.random() * 0.22).toFixed(2)
+            + '" style="animation-duration:' + (0.9 + Math.random() * 0.6).toFixed(2) + 's;animation-delay:-' + (Math.random() * 1.5).toFixed(2) + 's"/>';
+    }
+    $("lightRain").innerHTML = out;
+})();
+
+/* код погоды -> параметры сцены */
+function wxState(code) {
+    var p = { ca: 1, cb: 1, cc: 1, cd: 0.25, gray: 0.7, rain: 0, snow: 0, fog: 0, storm: 0 };
+    if (code === 0)       { p.ca = .6; p.cb = 0; p.cc = 0; p.cd = 0; p.gray = 0; }
+    else if (code === 1)  { p.ca = 1;  p.cb = .3; p.cc = 0; p.cd = 0; p.gray = .05; }
+    else if (code === 2)  { p.cc = 0;  p.cd = 0; p.gray = .3; }
+    else if (code === 3)  { }
+    else if (code === 45 || code === 48) { p.cc = .5; p.cd = 0; p.gray = .65; p.fog = 1; }
+    else if (code >= 51 && code <= 57)   { p.cd = .6; p.gray = .8; p.rain = .55; }
+    else if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) { p.cd = 1; p.gray = .9; p.rain = 1; }
+    else if ((code >= 71 && code <= 77) || code === 85 || code === 86) { p.cd = .5; p.gray = .8; p.snow = 1; }
+    else if (code >= 95)  { p.cd = 1; p.gray = 1; p.rain = 1; p.storm = 1; }
+    p.cbase = cloudBase(code);
+    return p;
+}
+
+function cloudBase(code) {
+    if (code === 0) return 900;
+    if (code === 1) return 700;
+    if (code === 2) return 520;
+    if (code === 3) return 360;
+    if (code === 45 || code === 48) return 800;
+    if (code >= 51 && code <= 57) return 300;
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return 240;
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 420;
+    if (code >= 95) return 150;
+    return 500;
+}
+
+function toMin(str) { return +str.slice(11, 13) * 60 + +str.slice(14, 16); }
+
+/* абсолютное время (минуты) из строки "YYYY-MM-DDTHH:MM" — для сравнения между днями */
+function tsMin(s) {
+    return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +s.slice(11, 13), +s.slice(14, 16)) / 60000;
+}
+
+/* день / сумерки / ночь: плавные веса по восходу и закату */
+function todWeights(d) {
+    var cur = d.current, day, night;
+    if (d.daily && d.daily.sunrise && d.daily.sunset && d.daily.sunrise[0] && d.daily.sunset[0]) {
+        var m = toMin(cur.time), sr = toMin(d.daily.sunrise[0]), ss = toMin(d.daily.sunset[0]);
+        if (m >= sr && m <= ss) { day = Math.min(1, Math.min(m - sr, ss - m) / 60); night = 0; }
+        else { day = 0; night = Math.min(1, (m < sr ? sr - m : m - ss) / 60); }
+    } else {
+        day = cur.is_day === 1 ? 1 : 0; night = 1 - day;
+    }
+    return [day, 1 - day - night, night];
+}
+
+var BG_PRESETS = {
+    clear: [0, "d"], cloud: [2, "d"], overcast: [3, "d"], rain: [63, "d"], snow: [73, "d"], storm: [95, "d"], fog: [45, "d"],
+    mostly: [1, "d"], drizzle: [53, "d"], lightrain: [61, "d"], nightlightrain: [61, "n"], dusk: [1, "s"],
+    night: [0, "n"], nightcloud: [2, "n"], nightovercast: [3, "n"], nightfog: [45, "n"],
+    nightrain: [63, "n"], nightsnow: [73, "n"], stormnight: [95, "n"]
+};
+var bgForce = (location.search.match(/bg=(\w+)/) || [])[1];
+
+function cloudFor(code) {
+    if (code === 0) return [0.05, 0];
+    if (code === 1) return [0.22, 0];
+    if (code === 2) return [0.38, 0.15];
+    if (code === 3) return [0.85, 0.75];
+    if (code === 45 || code === 48) return [0.70, 0.25];
+    if (code >= 51 && code <= 57) return [0.90, 0.55];
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return [1, 0.70];
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return [0.95, 0.40];
+    if (code >= 95) return [1, 0.90];
+    return [0.85, 0.55];
+}
+function f2(v) { return (Math.round(v * 100) / 100); }
+function setClouds(p) {
+    var day = [1, 1, 1], dk = [0.34, 0.41, 0.58], dusk = [0.85, 0.62, 0.72], nt = [0.20, 0.25, 0.46];
+    var c = [], i, base;
+    for (i = 0; i < 3; i++) {
+        base = day[i] + (dk[i] - day[i]) * p.dark;
+        base = base + (dusk[i] - base) * p.dusk;
+        c.push(base + (nt[i] - base) * p.night);
+    }
+    var B = -1.65 + 1.75 * p.cover;
+    var cm = $("cmCloud"), sh = $("cmShade");
+    if (cm) cm.setAttribute("values", "0 0 0 0 " + f2(c[0]) + "  0 0 0 0 " + f2(c[1]) + "  0 0 0 0 " + f2(c[2]) + "  3.2 0 0 0 " + f2(B));
+    if (sh) sh.setAttribute("values", "0 0 0 0 " + f2(c[0] * 0.72) + "  0 0 0 0 " + f2(c[1] * 0.74) + "  0 0 0 0 " + f2(c[2] * 0.82) + "  0 0 0 0.45 0");
+}
+
+function setScene(p) {
+    setOp("skyDusk", 1 - p.night);
+    setOp("skyDay", p.day);
+    setOp("grayDay", 0.95 * p.gray * (1 - p.night));
+    setOp("grayNight", 0.7 * p.gray * p.night);
+    setOp("fxStars", p.night * (1 - p.gray));
+    setOp("fxMoon", p.night * (1 - 0.85 * p.gray));
+    var sun = (0.9 * p.day + p.dusk) * (1 - 0.8 * p.gray);
+    setOp("fxSun", sun);
+    setOp("sunRays", 1 - p.dusk);
+    setClouds(p);
+    setOp("fxFog", p.fog);
+    setOp("fxRainA", p.rain);
+    setOp("fxRainB", p.rain > 0.7 ? 1 : 0);
+    setOp("fxSnow", p.snow);
+    setOp("fxStorm", p.storm);
+
+    setOp("fxShoot", p.night * (1 - p.gray));
+    setOp("fxFog2", p.fog * 0.8);
+    setOp("fxSnow2", p.snow);
+    setOp("fxRainC", p.storm);
+    setOp("fxSplash", p.rain * 0.8);
+    setOp("fxBank", p.cover * p.dark * 0.65);
+    var sunEl = $("fxSun");
+    if (sunEl) sunEl.style.transform = "translateY(" + Math.round(p.dusk * 70) + "px)";
+    var n = p.night, k = 1 - n,
+        br = Math.round(255 * (0.43 * k + 0.13 * n)),
+        bg = Math.round(255 * (0.50 * k + 0.16 * n)),
+        bb = Math.round(255 * (0.66 * k + 0.30 * n)),
+        col = "rgb(" + br + "," + bg + "," + bb + ")";
+    if ($("bankA")) { $("bankA").setAttribute("fill", col); $("bankB").setAttribute("fill", col); }
+    var cd = Math.max(90, (p.cbase || 600) / (0.7 + (curWind || 0) / 6));
+    cd = Math.round(cd / 10) * 10;
+    if (cd !== lastCd) { lastCd = cd; document.documentElement.style.setProperty("--cdur", cd + "s"); }
+
+    var sc = (0.03 + 0.12 * p.fog + 0.16 * p.snow + 0.14 * p.dusk) * (1 - p.night);
+    $("scrim").style.opacity = Math.min(0.4, sc);
+}
+
+
+/* =====================================================================
+   ВИДЕО-ФОНЫ ПО ПОГОДЕ
+   ---------------------------------------------------------------------
+   Как это работает:
+   • Два <video>-слота. Новый ролик грузится в свободный слот, и только
+     когда он реально начал играть — плавно проявляется ПОВЕРХ старого.
+     Поэтому нет чёрных вспышек, пауз и скачков.
+   • Бесшовный цикл: за ~1.5 с до конца ролик запускается заново во втором
+     слоте и плавно перекрывает конец — нет «рывка» на перезапуске.
+   • Пока играет видео, тяжёлое SVG-небо полностью отключено (display:none) —
+     это главный источник лагов в старой версии.
+   • Сторожок: если видео зависло/встало на паузу — оно само перезапускается.
+   ===================================================================== */
+var V = {
+    zakat:      "assets/zakat.mp4",
+    fog:        "assets/fog.mp4",
+    overcast:   "assets/pasmyrno.mp4",
+    partly:     "assets/peremen_oblako.mp4",
+    rain:       "assets/rain.mp4",
+    rainNight:  "assets/rain_night.mp4",
+    snow:       "assets/snow.mp4",
+    storm:      "assets/storm.mp4",
+    stormNight: "assets/storm_night.mp4",
+    sunny:      "assets/sunny.mp4",
+    clearNight: "assets/yasna_night.mp4"
+};
+
+/* ===== СКОРОСТЬ ВИДЕО =====
+   SPEED — общая скорость всех роликов: 1 = как в файле, 0.6 = заметно медленнее, 0.4 = совсем плавно.
+   Быстро подобрать: открой index.html?speed=0.5
+   SPEED_FILE — поправка для отдельного ролика, если какой-то всё ещё быстрее остальных
+   (например "assets/rain.mp4": 0.7 — этот ролик будет ещё на 30% медленнее). */
+var SPEED = +((location.search.match(/speed=([\d.]+)/) || [])[1]) || 0.9;
+var SPEED_FILE = {
+    "assets/zakat.mp4": 1,
+    "assets/fog.mp4": 1,
+    "assets/pasmyrno.mp4": 1,
+    "assets/peremen_oblako.mp4": 1,
+    "assets/rain.mp4": 1,
+    "assets/rain_night.mp4": 1,
+    "assets/snow.mp4": 1,
+    "assets/storm.mp4": 1,
+    "assets/storm_night.mp4": 1,
+    "assets/sunny.mp4": 1,
+    "assets/yasna_night.mp4": 1
+};
+/* ===== ПОЛОЖЕНИЕ ВИДЕО ПО ВЫСОТЕ =====
+   Ролик шире и выше экрана, поэтому видна только полоса 1156×256.
+   Число 0–100 (%): 50 = по центру, больше = картинка едет ВВЕРХ (видно нижнюю часть ролика),
+   меньше = картинка едет ВНИЗ (видно верхнюю часть).
+   Быстро подобрать: index.html?bg=stormnight&ypos=75 */
+var YPOS = 50;
+var YPOS_FILE = {
+    "assets/storm_night.mp4": 35
+};
+function clipY(file) {
+    var q = +((location.search.match(/ypos=(\d+)/) || [])[1]);
+    if (q === q && (location.search.indexOf("ypos=") > -1)) return Math.max(0, Math.min(100, q));
+    return YPOS_FILE[file] !== undefined ? YPOS_FILE[file] : YPOS;
+}
+function clipRate(file) {
+    var r = SPEED * (SPEED_FILE[file] || 1);
+    return r < 0.1 ? 0.1 : (r > 2 ? 2 : r);
+}
+
+var VID = {
+    slots: [$("vidA"), $("vidB")],
+    cur: -1,            // индекс видимого слота (-1 — видео нет)
+    file: "",           // что сейчас играет
+    want: "",           // что хотим играть
+    busy: false,        // идёт смена ролика или стык цикла
+    pending: null,      // запрос, пришедший во время busy
+    fade: 1400,         // мс — плавность смены ролика
+    loopFade: 1500,     // мс — плавность стыка цикла
+    svgTimer: 0,
+    retryTimer: 0,
+    log: []             // журнал выбора ролика: "код погоды|файл" (виден в ?debug)
+};
+
+(function () {
+    var i, v;
+    for (i = 0; i < 2; i++) {
+        v = VID.slots[i];
+        v.muted = true; v.defaultMuted = true; v.loop = false;
+        v.addEventListener("ended", (function (el) {
+            return function () {
+                /* если стык цикла не успел — доигрываем «в лоб» */
+                if (!VID.busy && VID.slots[VID.cur] === el) vidLoop();
+            };
+        })(v));
+    }
+})();
+
+function showSvg(on) {
+    var s = $("bgSvg");
+    clearTimeout(VID.svgTimer);
+    if (on) { s.style.display = "block"; }
+    else { s.style.display = "none"; }
+}
+
+function safePlay(v) {
+    var p;
+    try { p = v.play(); } catch (e) { return; }
+    if (p && typeof p.catch === "function") p.catch(function () {});
+}
+
+/* Подготовить слот и дождаться ПЕРВОГО реально проигранного кадра */
+function startClip(v, file, reuse, onReady, onFail) {
+    var finished = false, timer;
+    function cleanup() {
+        v.removeEventListener("playing", ok);
+        v.removeEventListener("error", bad);
+        clearTimeout(timer);
+    }
+    function ok()  { if (finished) return; finished = true; cleanup(); try { v.playbackRate = clipRate(file); } catch (e1) {} onReady(); }
+    function bad() { if (finished) return; finished = true; cleanup(); onFail(); }
+    v.addEventListener("playing", ok);
+    v.addEventListener("error", bad);
+    timer = setTimeout(bad, 12000);
+    v.pause();
+    if (reuse && v._file === file) {
+        try { v.currentTime = 0; } catch (e) {}
+    } else {
+        v._file = file;
+        v.src = file;
+        v.load();
+    }
+    try { v.defaultPlaybackRate = clipRate(file); v.playbackRate = clipRate(file); } catch (e0) {}
+    v.style.objectPosition = "50% " + clipY(file) + "%";
+    var p;
+    try { p = v.play(); } catch (e2) { bad(); return; }
+    if (p && typeof p.catch === "function") p.catch(bad);
+}
+
+function fadeIn(v, ms, done) {
+    v.style.transition = "none";
+    v.style.opacity = "0";
+    v.style.zIndex = "2";
+    void v.offsetWidth;                          // применить стартовое состояние
+    v.style.transition = "opacity " + ms + "ms ease";
+    v.style.opacity = "1";
+    setTimeout(done, ms + 60);
+}
+function hideNow(v) {
+    v.style.transition = "none";
+    v.style.opacity = "0";
+    v.style.zIndex = "1";
+    v.pause();
+}
+
+function flushPending() {
+    if (VID.pending === null) return;
+    var f = VID.pending;
+    VID.pending = null;
+    vidSet(f);
+}
+
+/* смена ролика */
+function vidSwitch(file) {
+    var old = VID.cur >= 0 ? VID.slots[VID.cur] : null;
+    var idx = VID.cur === 0 ? 1 : 0;
+    var nv = VID.slots[idx];
+    var prevFile = VID.file;
+    VID.busy = true;
+    VID.file = file;
+    startClip(nv, file, false, function () {
+        VID.cur = idx;
+        fadeIn(nv, VID.fade, function () {
+            if (old) hideNow(old);
+            showSvg(false);                      // видео полностью закрывает небо — небо выключаем
+            VID.busy = false;
+            flushPending();
+        });
+    }, function () {
+        /* не загрузилось: оставляем что было, повторим позже */
+        VID.file = prevFile;
+        VID.busy = false;
+        clearTimeout(VID.retryTimer);
+        VID.retryTimer = setTimeout(function () { if (!VID.busy) vidSet(VID.want); }, 30000);
+        flushPending();
+    });
+}
+
+/* стык цикла: тот же ролик в соседнем слоте, плавно поверх конца */
+function vidLoop() {
+    if (VID.busy || VID.cur < 0 || !VID.file) return;
+    var old = VID.slots[VID.cur];
+    var idx = 1 - VID.cur;
+    var nv = VID.slots[idx];
+    VID.busy = true;
+    startClip(nv, VID.file, true, function () {
+        VID.cur = idx;
+        fadeIn(nv, VID.loopFade, function () {
+            hideNow(old);
+            VID.busy = false;
+            flushPending();
+        });
+    }, function () {
+        /* запасной вариант: просто перемотать текущий */
+        try { old.currentTime = 0; } catch (e) {}
+        safePlay(old);
+        VID.busy = false;
+        flushPending();
+    });
+}
+
+/* убрать видео -> вернуть SVG-небо */
+function vidHide() {
+    if (VID.cur < 0) { VID.file = ""; return; }
+    var v = VID.slots[VID.cur];
+    VID.busy = true;
+    VID.file = "";
+    showSvg(true);
+    v.style.transition = "opacity " + VID.fade + "ms ease";
+    v.style.opacity = "0";
+    setTimeout(function () {
+        hideNow(v);
+        VID.cur = -1;
+        VID.busy = false;
+        flushPending();
+    }, VID.fade + 60);
+}
+
+function vidSet(file) {
+    if (VID.busy) { VID.pending = file; return; }
+    if (file === VID.file) return;
+    if (!file) vidHide(); else vidSwitch(file);
+}
+
+/* следим за стыком цикла */
+setInterval(function () {
+    if (VID.cur < 0 || VID.busy) return;
+    var v = VID.slots[VID.cur], d = v.duration;
+    if (!d || d !== d || d === Infinity) return;
+    var rate = v.playbackRate || 1;
+    if (d / rate < (VID.loopFade / 1000) * 2 + 1) { v.loop = true; return; }     // совсем короткий ролик — обычный loop
+    v.loop = false;
+    if (v.currentTime >= d - (VID.loopFade / 1000 + 0.5) * rate) vidLoop();
+}, 150);
+
+/* сторожок: пауза/зависание -> перезапуск */
+var wdLast = -1, wdStuck = 0;
+function watchdog() {
+    if (VID.cur < 0 || VID.busy) { wdStuck = 0; return; }
+    var v = VID.slots[VID.cur];
+    if (v.paused && !v.ended) { safePlay(v); wdStuck = 0; return; }
+    if (v.currentTime === wdLast) {
+        wdStuck++;
+        if (wdStuck >= 3) {                       // ~6 секунд без движения кадров
+            wdStuck = 0;
+            var f = VID.file;
+            VID.file = "";                        // заставим vidSwitch перезагрузить ролик в свободный слот
+            vidSet(f);
+        }
+    } else { wdStuck = 0; }
+    wdLast = v.currentTime;
+}
+setInterval(watchdog, 2000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) watchdog(); });
+
+/* Какой ролик нужен для этой погоды */
+function pickVideo(code, w) {
+    var night = w[2] >= 0.5, dusk = w[1] >= 0.35;
+    var snow  = (code >= 71 && code <= 77) || code === 85 || code === 86;
+    var rain  = (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
+    var light = (code === 51 || code === 53 || code === 55 || code === 61 || code === 80);   // морось / небольшой дождь
+    var file = "", dim = false;
+
+    if (code >= 95)                          file = night ? V.stormNight : V.storm;
+    else if (snow)                         { file = V.snow; dim = night; }
+    else if (rain && light)                { file = V.overcast; dim = night; }   // небольшой дождь: пасмурное небо + редкие капли
+    else if (rain)                           file = night ? V.rainNight : V.rain;
+    else if (dusk && code <= 2)              file = V.zakat;                 // закат/рассвет — только при ясной и малооблачной погоде
+    else if (code === 45 || code === 48)   { file = V.fog; dim = night; }
+    else if (code === 3)                   { file = V.overcast; dim = night; }
+    else if (code === 2)                   { file = V.partly; dim = night; }
+    else if (code === 0 || code === 1)       file = night ? V.clearNight : V.sunny;
+
+    /* dim = дневной ролик показываем ночью -> затемняем */
+    return { file: file, dim: dim, light: light && rain };
+}
+
+function updateWeatherVideo(code, w) {
+    var r = pickVideo(code, w);
+    VID.want = r.file;
+    if (VID.log[VID.log.length - 1] !== (code + "|" + r.file)) {
+        VID.log.push(code + "|" + r.file);
+        if (VID.log.length > 6) VID.log.shift();
+    }
+    vidSet(r.file);
+    if (r.file) $("scrim").style.opacity = r.dim ? 0.5 : (r.light ? 0.14 : 0.06);
+    $("lightRain").style.opacity = r.light ? 1 : 0;
+}
+
+function applyBg(d, noVideo) {
+    var p, w, cc, code;
+    if (bgForce && BG_PRESETS[bgForce]) {
+        code = BG_PRESETS[bgForce][0];
+        w = BG_PRESETS[bgForce][1] === "d" ? [1, 0, 0] : (BG_PRESETS[bgForce][1] === "s" ? [0, 1, 0] : [0, 0, 1]);
+    } else {
+        code = effCode(d.current.weather_code, d.current.cloud_cover);
+        w = todWeights(d);
+    }
+    cc = cloudFor(code);
+    p = wxState(code);
+    p.cover = cc[0]; p.dark = cc[1];
+    p.day = w[0]; p.dusk = w[1]; p.night = w[2];
+    setScene(p);
+    if (!noVideo) updateWeatherVideo(code, w);
+}
+
+/* пока погода не загрузилась — ясное небо по часам устройства (видео стартует после загрузки погоды) */
+(function () {
+    var h = nowLocalHour(), fake;
+    fake = { current: { weather_code: 0, is_day: (h >= 7 && h < 19) ? 1 : 0, time: "" } };
+    var p = wxState(0), w, cc = cloudFor(0);
+    if (bgForce && BG_PRESETS[bgForce]) { applyBg(fake); return; }
+    w = fake.current.is_day ? [1, 0, 0] : [0, 0, 1];
+    p.cover = cc[0]; p.dark = cc[1];
+    p.day = w[0]; p.dusk = w[1]; p.night = w[2];
+    setScene(p);
+})();
+function nowLocalHour() {
+    try { return new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Chisinau" })).getHours(); }
+    catch (e) { return new Date().getHours(); }
+}
+
+/* =====================================================================
+  ПОГОДА ВНУТРИ ПАНЕЛЕЙ — ОТКЛЮЧЕНА.
+  Раньше здесь рисовались дождь/снег/туман/солнце поверх панелей.
+  Теперь в панелях только стекло, а погоду показывают твои видео-фоны.
+  Функция оставлена пустой, чтобы остальной код (вызов из render) не менялся.
+  ===================================================================== */
+function setCardFx(code, isDay) { return; }
+
+/* =====================================================================
+  ПЕРЕКЛЮЧЕНИЕ СЛАЙДОВ  (2 слайда: время+сейчас → прогноз по часам)
+  Открыть сразу нужный слайд: index.html?slide=2
+  ===================================================================== */
+
+
+var SLIDE_SECONDS = 10;
+var slideEls = [document.getElementById("slide1"), document.getElementById("slide2")];
+var curSlide = 0;
+function showSlide(i) {
+    curSlide = i;
+    for (var k = 0; k < slideEls.length; k++) {
+        if (k === i) slideEls[k].className = "slide on";
+        else slideEls[k].className = "slide";
+    }
+}
+(function () {
+    var m = location.search.match(/slide=(\d)/);
+    if (m && +m[1] >= 1 && +m[1] <= slideEls.length) { showSlide(+m[1] - 1); return; }
+    showSlide(0);
+    setInterval(function () { showSlide((curSlide + 1) % slideEls.length); }, SLIDE_SECONDS * 1000);
+})();
+
+
+/* =====================================================================
+  ЧАСЫ И ДАТА (слайд 1) — время Тирасполя
+  ===================================================================== */
+var TZ = "Europe/Chisinau";
+var DAYS = ["Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
+var DAYS_SHORT = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+var MONTHS = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function nowLocal() {
+    try { return new Date(new Date().toLocaleString("en-US", { timeZone: TZ })); }
+    catch (e) { return new Date(); }
+}
+var lastMin = -1;
+function tick() {
+    var d = nowLocal();
+    var key = d.getHours() * 60 + d.getMinutes() + d.getDate() * 10000;
+    if (key === lastMin) return;
+    lastMin = key;
+    document.getElementById("timeTxt").textContent = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    document.getElementById("dateTxt").textContent = DAYS_SHORT[d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()];
+}
+tick();
+setInterval(tick, 1000);
+
+
+/* =====================================================================
+  РЕАЛЬНАЯ ПОГОДА — Тирасполь (Open-Meteo, без ключа)
+  ===================================================================== */
+var LAT = 46.84, LON = 29.58;
+var STEP_HOURS = 3;
+var SLOTS = 5;          // сколько ячеек в почасовом прогнозе (закат/восход занимает одну из них)
+var DAYS_COUNT =5;     // сколько дней запрашиваем (нужны для восхода/заката и почасового прогноза)
+var REFRESH_OK = 15 * 60 * 1000;
+var REFRESH_FAIL = 60 * 1000;
+var CACHE_KEY = "wx_tiraspol_v5";
+var CACHE_MAX_AGE = 20 * 60 * 1000;      // кеш старше 20 минут не используем для выбора видео
+var staleCache = null;
+
+var URL_API = "https://api.open-meteo.com/v1/forecast"
+  + "?latitude=" + LAT + "&longitude=" + LON
+  + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,cloud_cover"
+  + "&hourly=temperature_2m,weather_code,is_day,cloud_cover"
+  + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
+  + "&wind_speed_unit=ms&temperature_unit=celsius"
+  + "&timezone=" + encodeURIComponent(TZ)
+  + "&forecast_days=" + DAYS_COUNT;
+
+/* Уточняем «ясно / малооблачно / местами солнечно / пасмурно» по реальному % облачности.
+   Код погоды сервиса часто округляет в сторону «пасмурно». Пороги можно менять. */
+var lastWx = "";
+function effCode(code, cloud) {
+    if (code > 3 || cloud === undefined || cloud === null) return code;
+    if (cloud < 15) return 0;      // ясно
+    if (cloud < 40) return 1;      // малооблачно
+    if (cloud < 90) return 2;      // местами солнечно
+    return 3;                      // пасмурно (только при почти полностью закрытом небе)
+}
+
+function iconFor(code, isDay) {
+    if (code === 0 || code === 1) return isDay ? "ic-sun" : "ic-moon";
+    if (code === 2)               return isDay ? "ic-partly" : "ic-partlyN";
+ if (code === 3)               return isDay ? "ic-cloud" : "ic-partlyN";
+    if (code === 45 || code === 48) return "ic-fog";
+    if (code >= 51 && code <= 57) return "ic-drizzle";
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "ic-rain";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "ic-snow";
+    if (code >= 95)               return "ic-storm";
+    return "ic-cloud";
+}
+
+function condText(code, isDay) {
+    if (code === 0)  return isDay ? "Солнечно" : "Ясно";
+    if (code === 1)  return isDay ? "Малооблачно" : "Ясно";
+    if (code === 2)  return isDay ? "Местами солнечно" : "Переменная облачность";
+    if (code === 3)  return "Пасмурно";
+    if (code === 45 || code === 48) return "Туман";
+    if (code >= 51 && code <= 55) return "Морось";
+    if (code === 56 || code === 57 || code === 66 || code === 67) return "Ледяной дождь";
+    if (code === 61 || code === 80) return "Небольшой дождь";
+    if (code === 65) return "Сильный дождь";
+    if (code >= 61 && code <= 65) return "Дождь";
+    if (code >= 80 && code <= 82) return "Ливень";
+    if (code === 85 || code === 86) return "Снегопад";
+    if (code >= 71 && code <= 77) return "Снег";
+    if (code >= 95) return "Гроза";
+    return "Облачно";
+}
+
+function fmtTemp(t) {
+    var r = Math.round(t);
+    if (r > 0) return "+" + r + "°";
+    if (r < 0) return "\u2212" + Math.abs(r) + "°";
+    return "0°";
+}
+/* точный восход/закат по координатам (алгоритм NOAA), время Тирасполя */
+function sunUTC(y, m, d, rise) {
+    var R = Math.PI / 180, lngH = LON / 15;
+    var N = Math.round((Date.UTC(y, m, d) - Date.UTC(y, 0, 0)) / 864e5);
+    var t = N + ((rise ? 6 : 18) - lngH) / 24;
+    var M = 0.9856 * t - 3.289;
+    var L = (M + 1.916 * Math.sin(M * R) + 0.020 * Math.sin(2 * M * R) + 282.634) % 360;
+    var RA = Math.atan(0.91764 * Math.tan(L * R)) / R;
+    RA = (RA + 360) % 360;
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90;
+    RA /= 15;
+    var sinDec = 0.39782 * Math.sin(L * R), cosDec = Math.cos(Math.asin(sinDec));
+    var cosH = (Math.cos(90.833 * R) - sinDec * Math.sin(LAT * R)) / (cosDec * Math.cos(LAT * R));
+    var H = Math.acos(cosH) / R;
+    if (rise) H = 360 - H;
+    H /= 15;
+    var T = H + RA - 0.06571 * t - 6.622;
+    var UT = ((T - lngH) % 24 + 24) % 24;
+    return Date.UTC(y, m, d) + UT * 3600000;
+}
+function nextSunEventCalc(d) {
+    var cs = d.current.time, now = tsMin(cs);
+    var y = +cs.slice(0, 4), m = +cs.slice(5, 7) - 1, dd = +cs.slice(8, 10);
+    var best = null, off, k, dt, ms, str, t;
+    for (off = -1; off <= 2; off++) {
+        dt = new Date(Date.UTC(y, m, dd + off));
+        for (k = 0; k < 2; k++) {
+            ms = sunUTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), k === 0);
+            str = new Date(ms).toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T");
+            t = tsMin(str);
+            if (t > now && (!best || t < best.t)) best = { t: t, kind: k === 0 ? "sunrise" : "sunset", str: str };
+        }
+    }
+    return best;
+}
+/* ближайший закат/восход после текущего момента (по данным сервиса) */
+function nextSunEvent(d) {
+    if (!d.daily || !d.daily.sunrise || !d.daily.sunset) return null;
+    var now = tsMin(d.current.time), best = null, i, t;
+    for (i = 0; i < d.daily.sunrise.length; i++) {
+        if (!d.daily.sunrise[i]) continue;
+        t = tsMin(d.daily.sunrise[i]);
+        if (t > now && (!best || t < best.t)) best = { t: t, kind: "sunrise", str: d.daily.sunrise[i] };
+    }
+    for (i = 0; i < d.daily.sunset.length; i++) {
+        if (!d.daily.sunset[i]) continue;
+        t = tsMin(d.daily.sunset[i]);
+        if (t > now && (!best || t < best.t)) best = { t: t, kind: "sunset", str: d.daily.sunset[i] };
+    }
+    return best;
+}
+
+function render(d, noVideo) {
+    var cur = d.current;
+    var isDay = cur.is_day === 1;
+
+    /* ---- слайд 1 ---- */
+    var wcode = effCode(cur.weather_code, cur.cloud_cover);
+    lastWx = "API: код " + cur.weather_code + ", облачность " + cur.cloud_cover + "%  ->  " + wcode;
+        if (bgForce && BG_PRESETS[bgForce]) { wcode = BG_PRESETS[bgForce][0]; isDay = BG_PRESETS[bgForce][1] !== "n"; }
+            try { setCardFx(wcode, isDay); } catch (e) {}
+    var bigIcon = iconFor(wcode, isDay);
+    if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
+    document.getElementById("bigIcUse").setAttribute("href", "#" + bigIcon);
+    document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
+   document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
+document.getElementById("bigCond").textContent = condText(wcode, isDay);
+document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature);
+    if (d.daily && d.daily.temperature_2m_min && d.daily.temperature_2m_max) {
+        document.getElementById("mmMin").textContent = "Мин. " + fmtTemp(d.daily.temperature_2m_min[0]);
+        document.getElementById("mmMax").textContent = "Макс. " + fmtTemp(d.daily.temperature_2m_max[0]);
+    }
+
+    try { renderDays(d); } catch (e) {}
+
+    curWind = +cur.wind_speed_10m || 0;
+    try { applyBg(d, noVideo); } catch (e) {}
+}
+var MONTHS_SHORT = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
+
+function renderDays(d) {
+    var dl = d.daily;
+    if (!dl || !dl.time || !dl.temperature_2m_min || !dl.temperature_2m_max) return;
+    var n = Math.min(DAYS_COUNT, dl.time.length), i, dt, name, code, icon, html = "";
+    for (i = 0; i < n; i++) {
+        dt = new Date(+dl.time[i].slice(0, 4), +dl.time[i].slice(5, 7) - 1, +dl.time[i].slice(8, 10));
+        name = i === 0 ? "Сегодня" : DAYS_SHORT[dt.getDay()] + ", " + dt.getDate() + " " + MONTHS_SHORT[dt.getMonth()];
+        code = dl.weather_code ? dl.weather_code[i] : 3;
+        icon = iconFor(code, true);
+        html += '<div class="d5c" style="left:' + (i * 180) + 'px">'
+              +   '<div class="dn">' + name + '</div>'
+              +   '<div class="di' + (icon === "ic-sun" ? " sun" : "") + '"><svg viewBox="0 0 100 100"><use href="#' + icon + '"/></svg></div>'
+              +   '<div class="tt"><span class="hi">' + fmtTemp(dl.temperature_2m_max[i]) + '</span><span class="lo">' + fmtTemp(dl.temperature_2m_min[i]) + '</span></div>'
+              + '</div>';
+        if (i > 0) html += '<div class="vline" style="left:' + (i * 180) + 'px; top:32px; height:120px"></div>';
+    }
+    document.getElementById("d5wrap").innerHTML = html;
+}
+function saveCache(d) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: new Date().getTime(), d: d })); } catch (e) {} }
+function loadCache() {
+    try { var s = localStorage.getItem(CACHE_KEY); return s ? JSON.parse(s) : null; }
+    catch (e) { return null; }
+}
+
+function loadWeather() {
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    function fail() {
+        if (done) return;
+        done = true;
+        if (staleCache) { try { applyBg(staleCache); } catch (e) {} staleCache = null; }   // интернета нет — берём старые данные
+        setTimeout(loadWeather, REFRESH_FAIL);
+    }
+    xhr.open("GET", URL_API + "&_=" + new Date().getTime(), true);
+    xhr.timeout = 15000;
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4 || done) return;
+        if (xhr.status === 200) {
+            try {
+                var d = JSON.parse(xhr.responseText);
+                if (!d.current || !d.hourly) throw new Error("bad data");
+                staleCache = null;
+                render(d);
+                saveCache(d);
+                done = true;
+                setTimeout(loadWeather, REFRESH_OK);
+            } catch (e) { fail(); }
+        } else { fail(); }
+    };
+    xhr.ontimeout = fail;
+    xhr.onerror = fail;
+    xhr.send();
+}
+
+/* старт: сразу показываем последние сохранённые данные (если есть), затем обновляем */
+(function () {
+    var c = loadCache();
+    if (c && c.d) {
+        var fresh = (new Date().getTime() - c.t) < CACHE_MAX_AGE;
+        if (!fresh) staleCache = c.d;               // старые данные: текст показываем, а видео ждёт свежую погоду
+        try { render(c.d, !fresh); } catch (e) {}
+    }
+    loadWeather();
+})();
+
+
+/* диагностика: открой страницу с ?debug в конце адреса */
+if (location.search.indexOf("debug") > -1) {
+    var dbg = document.createElement("pre");
+    dbg.style.cssText = "position:absolute;left:8px;bottom:4px;z-index:99;margin:0;font:12px monospace;color:#fff;background:rgba(0,0,0,.7);padding:4px 6px;white-space:pre";
+    document.body.appendChild(dbg);
+    var fontInfo = "";
+    var chk = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'];
+    Promise.all(chk.map(function (f) {
+        return document.fonts.load(f).then(function (a) { return f + (a.length ? "  OK" : "  НЕТ ФАЙЛА"); }, function () { return f + "  ОШИБКА ЗАГРУЗКИ"; });
+    })).then(function (r) { fontInfo = r.join("\n"); });
+    setInterval(function () {
+        var v = VID.cur >= 0 ? VID.slots[VID.cur] : null;
+        dbg.textContent = fontInfo + "\n" + lastWx + "\nvideo: " + (VID.file || "нет (SVG-небо)")
+            + (v ? "  x" + v.playbackRate.toFixed(2) + "  t=" + v.currentTime.toFixed(1) + "/" + (v.duration || 0).toFixed(1) + "  " + v.videoWidth + "x" + v.videoHeight : "")
+            + (VID.busy ? "  [переход]" : "")
+            + "\nжурнал (код|файл):\n" + VID.log.join("\n");
+    }, 500);
+}
 </script>
+
 </body>
 </html>
