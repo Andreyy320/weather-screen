@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="ru">
-<head>
+<html lang="ru" class="boot">
+  <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1156, initial-scale=1.0">
 <title>Часы и погода</title>
@@ -43,7 +43,7 @@ html, body { width: 1156px; height: 256px; overflow: hidden; }
 
 body {
     position: relative;
-    background: #0b1d5c;
+    background: #000;
     color: #fff;
     font-family: var(--f-text);
     text-rendering: geometricPrecision;
@@ -471,6 +471,12 @@ body {
 #lightRain { display: none; }
 /* тени-фильтры на анимированных иконках перерисовываются каждый кадр — убираем */
 #bigIc, #bigIc.sun, .d5c .di, .d5c .di.sun, .fc .wi, .fc .wi.sun { filter: none !important; }
+
+
+
+/* пока идёт загрузка — панели скрыты, потом плавно проявляются */
+html.boot .slide.on .card { opacity: 0; }
+.slide .card { transition: opacity .8s ease; }
 </style>
 
 
@@ -744,22 +750,70 @@ body {
       </path>
     </symbol>
 
-    <symbol id="ic-fog" viewBox="0 0 100 100">
-      <g stroke="#e3edff" stroke-width="6" stroke-linecap="round" opacity=".9">
-        <line x1="18" y1="34" x2="82" y2="34">
-          <animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="6s" repeatCount="indefinite"/>
-        </line>
-        <line x1="26" y1="50" x2="90" y2="50">
-          <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="7s" repeatCount="indefinite"/>
-        </line>
-        <line x1="14" y1="66" x2="78" y2="66">
-          <animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" begin="-3s" repeatCount="indefinite"/>
-        </line>
-        <line x1="24" y1="82" x2="86" y2="82">
-          <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="6.5s" begin="-2s" repeatCount="indefinite"/>
-        </line>
+   <linearGradient id="gFogL" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#eaf2ff" stop-opacity="0"/>
+  <stop offset=".22" stop-color="#eaf2ff" stop-opacity=".95"/>
+  <stop offset=".78" stop-color="#eaf2ff" stop-opacity=".95"/>
+  <stop offset="1" stop-color="#eaf2ff" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="gFogLN" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#b9c7ef" stop-opacity="0"/>
+  <stop offset=".22" stop-color="#b9c7ef" stop-opacity=".9"/>
+  <stop offset=".78" stop-color="#b9c7ef" stop-opacity=".9"/>
+  <stop offset="1" stop-color="#b9c7ef" stop-opacity="0"/>
+</linearGradient>
+
+<!-- ТУМАН ДЕНЬ: чистые мягкие полосы -->
+<symbol id="ic-fog" viewBox="0 0 100 100">
+  <g fill="#eef4ff">
+    <rect x="14" y="24" width="60" height="9" rx="4.5" opacity="1">
+      <animateTransform attributeName="transform" type="translate" values="-5 0;7 0;-5 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="7s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="28" y="41" width="62" height="9" rx="4.5" opacity=".85">
+      <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="10" y="58" width="68" height="9" rx="4.5" opacity=".7">
+      <animateTransform attributeName="transform" type="translate" values="-6 0;5 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="9s" begin="-3s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="24" y="75" width="52" height="9" rx="4.5" opacity=".5">
+      <animateTransform attributeName="transform" type="translate" values="5 0;-7 0;5 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="7.5s" begin="-2s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</symbol>
+
+
+<!-- ТУМАН НОЧЬ: месяц за тёмным облаком + холодные полосы -->
+<symbol id="ic-fogN" viewBox="0 0 100 100">
+  <mask id="mMoon3">
+    <rect width="100" height="100" fill="#fff"/>
+    <circle cx="80" cy="16" r="14" fill="#000"/>
+  </mask>
+  <circle cx="68" cy="24" r="17" fill="url(#gMoon)" mask="url(#mMoon3)"/>
+  <g fill="#fff">
+    <circle cx="90" cy="38" r="1.5"><animate attributeName="opacity" values=".25;1;.25" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="52" cy="8" r="1.3"><animate attributeName="opacity" values=".25;1;.25" dur="3.6s" begin="-1.4s" repeatCount="indefinite"/></circle>
+  </g>
+  <g transform="translate(6 4) scale(.64)">
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="-3 0;4 0;-3 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="9s" repeatCount="indefinite"/>
+      <g fill="url(#gCloudDark)">
+        <circle cx="30" cy="62" r="17"/><circle cx="52" cy="48" r="23"/><circle cx="75" cy="60" r="18"/>
+        <rect x="22" y="60" width="62" height="20" rx="10"/>
       </g>
-    </symbol>
+    </g>
+  </g>
+  <g fill="url(#gFogLN)">
+    <rect x="8" y="58" width="80" height="7" rx="3.5">
+      <animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="6s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="18" y="71" width="76" height="7" rx="3.5">
+      <animateTransform attributeName="transform" type="translate" values="6 0;-6 0;6 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="7s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="4" y="84" width="70" height="7" rx="3.5">
+      <animateTransform attributeName="transform" type="translate" values="-5 0;7 0;-5 0" keyTimes="0;.5;1" calcMode="spline" keySplines=".45 0 .55 1;.45 0 .55 1" dur="8s" begin="-3s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</symbol>
 
     <!-- закат (солнце над горизонтом + стрелка вниз) и восход (стрелка вверх) -->
     <symbol id="ic-sunset" viewBox="0 0 100 100">
@@ -991,7 +1045,23 @@ body {
 
 <script>
 if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
-
+var BOOT = { font: 0, wx: 0, vid: 1 }, bootDone = false;
+function bootReveal() {
+    if (bootDone) return;
+    bootDone = true;
+    document.documentElement.className = document.documentElement.className.replace(/\bboot\b/, "");
+}
+function bootStep(k) {
+    BOOT[k] = 1;
+    if (BOOT.font && BOOT.wx && BOOT.vid) setTimeout(bootReveal, 150);
+}
+setTimeout(bootReveal, 2000); // страховка: если что-то не загрузилось — всё равно показать
+(function () {
+    if (!document.fonts || !document.fonts.load) { bootStep("font"); return; }
+    var f = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'], n = 0;
+    function one() { if (++n === f.length) bootStep("font"); }
+    for (var i = 0; i < f.length; i++) document.fonts.load(f[i]).then(one, one);
+})();
 /* =====================================================================
   ФОН ОТ РЕАЛЬНОЙ ПОГОДЫ
   Проверка без ожидания: index.html?bg=clear | cloud | overcast | rain | snow | storm | fog | dusk | night | nightrain | nightsnow
@@ -1100,11 +1170,12 @@ function tsMin(s) {
     return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +s.slice(11, 13), +s.slice(14, 16)) / 60000;
 }
 
-/* день / сумерки / ночь: плавные веса по восходу и закату */
+var TOD_AM = false;
 function todWeights(d) {
     var cur = d.current, day, night;
     if (d.daily && d.daily.sunrise && d.daily.sunset && d.daily.sunrise[0] && d.daily.sunset[0]) {
         var m = toMin(cur.time), sr = toMin(d.daily.sunrise[0]), ss = toMin(d.daily.sunset[0]);
+        TOD_AM = m < 720;  
         if (m >= sr && m <= ss) { day = Math.min(1, Math.min(m - sr, ss - m) / 60); night = 0; }
         else { day = 0; night = Math.min(1, (m < sr ? sr - m : m - ss) / 60); }
     } else {
@@ -1364,6 +1435,8 @@ function vidSwitch(file) {
     VID.busy = true;
     VID.file = file;
     startClip(nv, file, false, function () {
+              bootStep("vid");
+
         VID.cur = idx;
         fadeIn(nv, VID.fade, function () {
             if (old) hideNow(old);
@@ -1371,8 +1444,9 @@ function vidSwitch(file) {
             VID.busy = false;
             flushPending();
         });
-    }, function () {
+       }, function () {
         /* не загрузилось: оставляем что было, повторим позже */
+        bootStep("vid");
         VID.file = prevFile;
         VID.busy = false;
         clearTimeout(VID.retryTimer);
@@ -1489,8 +1563,18 @@ function updateWeatherVideo(code, w) {
         VID.log.push(code + "|" + r.file);
         if (VID.log.length > 6) VID.log.shift();
     }
-    vidSet(r.file);
-    if (r.file) $("scrim").style.opacity = r.dim ? 0.5 : (r.light ? 0.14 : 0.06);
+      vidSet(r.file);
+    if (!r.file) bootStep("vid");
+    if (r.file) {
+    var nativeNight = (r.file === V.clearNight || r.file === V.rainNight || r.file === V.stormNight || r.file === V.zakat);
+var dk = nativeNight ? 0 : (w[2] * 0.58 + w[1] * 0.22);   // было 0.46 и 0.20
+    var baseOp = r.light ? 0.14 : 0.06;
+    var tint = w[2] >= 0.5 ? "#050b2c"                              // ночь: глубокий синий
+             : (w[1] > 0.2 ? (TOD_AM ? "#4a3550" : "#2a1740")       // утро: розоватый, вечер: фиолетовый
+             : "#050b2c");
+    $("scrim").style.background = tint;
+   $("scrim").style.opacity = Math.min(0.72, baseOp + dk);    // было 0.62
+}
     /* слой с каплями включаем только когда он нужен — иначе он зря грузит плеер */
     $("lightRain").style.display = r.light ? "block" : "none";
     $("lightRain").style.opacity = r.light ? 1 : 0;
@@ -1639,7 +1723,7 @@ function iconFor(code, isDay) {
     if (code === 0 || code === 1) return isDay ? "ic-sun" : "ic-moon";
     if (code === 2)               return isDay ? "ic-partly" : "ic-partlyN";
  if (code === 3)               return isDay ? "ic-cloud" : "ic-partlyN";
-    if (code === 45 || code === 48) return "ic-fog";
+   if (code === 45 || code === 48) return isDay ? "ic-fog" : "ic-fogN";
     if (code >= 51 && code <= 57) return "ic-drizzle";
     if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "ic-rain";
     if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "ic-snow";
@@ -1747,7 +1831,8 @@ document.getElementById("feels1").textContent = "Ощущается как " + f
     try { renderDays(d); } catch (e) {}
 
     curWind = +cur.wind_speed_10m || 0;
-    try { applyBg(d, noVideo); } catch (e) {}
+        try { applyBg(d, noVideo); } catch (e) {}
+    bootStep("wx");
 }
 var MONTHS_SHORT = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 
@@ -1811,7 +1896,7 @@ function loadWeather() {
     if (c && c.d) {
         var fresh = (new Date().getTime() - c.t) < CACHE_MAX_AGE;
         if (!fresh) staleCache = c.d;               // старые данные: текст показываем, а видео ждёт свежую погоду
-        try { render(c.d, !fresh); } catch (e) {}
+      try { render(c.d, false); } catch (e) {}
     }
     loadWeather();
 })();
@@ -1835,6 +1920,58 @@ if (location.search.indexOf("debug") > -1) {
             + "\nжурнал (код|файл):\n" + VID.log.join("\n");
     }, 500);
 }
+
+/* =====================================================================
+   АВТООБНОВЛЕНИЕ: раз в несколько минут смотрим, не изменился ли index.html
+   на сервере (GitHub Pages). Если изменился — плавно гасим экран и
+   перезагружаем страницу. Погода берётся из localStorage-кэша, так что
+   после перезагрузки всё появляется почти мгновенно.
+   Руками обновлять / жать F5 больше не нужно.
+   ===================================================================== */
+(function () {
+    var CHECK_EVERY = 2 * 60 * 1000;   // как часто проверять (2 минуты)
+    var base = null, updating = false;
+
+    function hash(s) {
+        var h = 5381, i = s.length;
+        while (i) h = (h * 33) ^ s.charCodeAt(--i);
+        return (h >>> 0) + ":" + s.length;
+    }
+    function get(cb) {
+        var x = new XMLHttpRequest();
+        // уникальный ?chk=... обходит кэш браузера/GitHub Pages и service worker
+        x.open("GET", location.pathname + "?chk=" + new Date().getTime(), true);
+        x.timeout = 15000;
+        x.onreadystatechange = function () {
+            if (x.readyState !== 4 || x.status !== 200 || x.responseText.length < 1000) return;
+            cb(hash(x.responseText));
+        };
+        x.send();
+    }
+    function applyUpdate() {
+        if (updating) return;
+        updating = true;
+        try {
+            document.body.style.transition = "opacity .6s";
+            document.body.style.opacity = "0";
+        } catch (e) {}
+        setTimeout(function () { location.reload(); }, 700);
+    }
+    function check() {
+        get(function (h) {
+            if (base === null) { base = h; return; }
+            if (h !== base) applyUpdate();
+        });
+    }
+    check();                              // запоминаем «эталон» сразу после загрузки
+    setInterval(check, CHECK_EVERY);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) check(); });
+
+    // офлайн-кэш (sw.js лежит рядом). Не обязателен, но даёт запуск без интернета.
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+})();
 </script>
 
 </body>
