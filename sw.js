@@ -53,11 +53,11 @@ function precacheAssets() {
 }
 
 // видео просит куски файла (Range) — отдаём нужный кусок из закэшированного целого файла
-function serveAsset(req) {
-  var url = req.url;
+function serveAsset(e) {
+  var req = e.request, url = req.url;
   return caches.open(ASSETS).then(function (c) { return c.match(url); }).then(function (hit) {
     if (!hit) {
-      cacheFull(url);              // в кэше нет — догружаем целиком в фоне, а сейчас берём из сети
+      e.waitUntil(cacheFull(url)); // в кэше нет — догружаем целиком в фоне, а сейчас берём из сети
       return fetch(req);
     }
     var range = req.headers.get('range');
@@ -82,12 +82,30 @@ function serveAsset(req) {
 }
 
 self.addEventListener('install', function (e) {
+  // в install только HTML: он быстрый. Тяжёлые файлы качаются отдельно (см. 'message'),
+  // иначе установка затянется, а браузер может её прервать.
   e.waitUntil(
-    caches.open(CACHE)
-      .then(function (c) { return c.addAll([new Request('./', { cache: 'reload' }), new Request('./index.html', { cache: 'reload' })]); })
-      .then(precacheAssets)
+    caches.open(CACHE).then(function (c) { return c.addAll([new Request('./', { cache: 'reload' }), new Request('./index.html', { cache: 'reload' })]); })
   );
   self.skipWaiting();
+});
+
+// сколько файлов из ASSET_LIST уже в кэше — сообщаем странице (видно в консоли)
+function report() {
+  return caches.open(ASSETS).then(function (c) {
+    return Promise.all(ASSET_LIST.map(function (u) { return c.match(u).then(function (r) { return r ? 1 : 0; }); }));
+  }).then(function (a) {
+    var n = a.reduce(function (s, x) { return s + x; }, 0);
+    return self.clients.matchAll().then(function (cl) {
+      cl.forEach(function (c) { c.postMessage({ type: 'cache', cached: n, total: ASSET_LIST.length }); });
+    });
+  }).catch(function () {});
+}
+
+// страница просит «докачай, чего не хватает» (при загрузке и раз в 10 минут).
+// Уже скачанное пропускается, так что это дёшево. Если браузер прервал скачивание — следующий запрос продолжит.
+self.addEventListener('message', function (e) {
+  if (e.data === 'precache') e.waitUntil(report().then(precacheAssets).then(report));
 });
 
 self.addEventListener('activate', function (e) {
@@ -107,7 +125,7 @@ self.addEventListener('fetch', function (e) {
   var u = new URL(req.url);
   if (req.method !== 'GET' || u.origin !== location.origin) return;
   if (u.searchParams.has('chk')) return;                       // проверка обновлений — всегда напрямую в сеть
-  if (ASSET_RE.test(u.pathname)) { e.respondWith(serveAsset(req)); return; }
+  if (ASSET_RE.test(u.pathname)) { e.respondWith(serveAsset(e)); return; }
   e.respondWith(
     Promise.race([fetch(req.url, { cache: 'no-cache' }), timeout(4000)]).then(function (res) {
       if (!res || !res.ok) throw new Error('bad response');

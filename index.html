@@ -1978,6 +1978,14 @@ if (location.search.indexOf("debug") > -1) {
     // офлайн-кэш (sw.js лежит рядом)
     if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
         navigator.serviceWorker.register("sw.js").catch(function () {});
+        navigator.serviceWorker.addEventListener("message", function (e) {
+            if (e.data && e.data.type === "cache") log("офлайн-кэш: " + e.data.cached + " из " + e.data.total + " файлов");
+        });
+        navigator.serviceWorker.ready.then(function (reg) {
+            function ping() { if (reg.active) reg.active.postMessage("precache"); }
+            ping();                                   // докачать шрифты/видео, которых ещё нет в кэше
+            setInterval(ping, 10 * 60 * 1000);
+        });
     }
 })();
 </script>
