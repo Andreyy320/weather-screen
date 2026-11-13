@@ -1757,6 +1757,7 @@ var REFRESH_FAIL = 60 * 1000;
 var CACHE_KEY = "wx_tiraspol_v6";
 var CACHE_MAX_AGE = 20 * 60 * 1000;      // кеш старше 20 минут не используем для выбора видео
 var staleCache = null;
+var LASTD = null;                       // последние полученные данные погоды (для пересчёта фона раз в минуту)
 
 /* ===== МОДЕЛЬ ПОГОДЫ =====
    "ecmwf_ifs025" — европейская модель (ECMWF); для Тирасполя совпала с Яндексом.
@@ -1883,6 +1884,7 @@ function nextSunEvent(d) {
 }
 
 function render(d, noVideo) {
+    LASTD = d;
     var cur = d.current;
     var isDay = cur.is_day === 1;
 
@@ -1985,6 +1987,21 @@ function loadWeather() {
     loadWeather();
 })();
 
+
+/* раз в минуту пересчитываем фон по ТЕКУЩЕМУ времени: закат -> ночь меняется вовремя,
+   а не ждёт следующего обновления погоды (раз в 15 минут) */
+setInterval(function () {
+    if (!LASTD || (bgForce && BG_PRESETS[bgForce])) return;
+    try {
+        var n = new Date().toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T");
+        var cur2 = {}, d2 = {}, k;
+        for (k in LASTD.current) cur2[k] = LASTD.current[k];
+        cur2.time = n;
+        for (k in LASTD) d2[k] = LASTD[k];
+        d2.current = cur2;
+        applyBg(d2);
+    } catch (e) {}
+}, 60 * 1000);
 
 /* диагностика: открой страницу с ?debug в конце адреса */
 if (location.search.indexOf("debug") > -1) {
