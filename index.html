@@ -3,15 +3,49 @@
   <head>
 <meta charset="UTF-8">
 <script>
-(function(){var s=document.documentElement.style,pp=null;
-try{var lv=localStorage.getItem("wx_last_vid");pp=(lv&&localStorage.getItem("wx_poster_"+lv))||localStorage.getItem("wx_poster");}catch(e){}
+(function(){
+var s=document.documentElement.style,pp=null;
+var LA=46.84,LO=29.58,RD=Math.PI/180,TZ0="Europe/Chisinau";
+function sunUTC0(y,m,d,rise){
+ var lngH=LO/15,N=Math.round((Date.UTC(y,m,d)-Date.UTC(y,0,0))/864e5),t=N+((rise?6:18)-lngH)/24;
+ var M=0.9856*t-3.289,L=(M+1.916*Math.sin(M*RD)+0.020*Math.sin(2*M*RD)+282.634)%360;
+ var RA=Math.atan(0.91764*Math.tan(L*RD))/RD;RA=(RA+360)%360;
+ RA+=Math.floor(L/90)*90-Math.floor(RA/90)*90;RA/=15;
+ var sd=0.39782*Math.sin(L*RD),cd=Math.cos(Math.asin(sd));
+ var cH=(Math.cos(90.833*RD)-sd*Math.sin(LA*RD))/(cd*Math.cos(LA*RD));
+ var H=Math.acos(cH)/RD;if(rise)H=360-H;H/=15;
+ var T=H+RA-0.06571*t-6.622,UT=((T-lngH)%24+24)%24;
+ return Date.UTC(y,m,d)+UT*3600000;
+}
+function locMin(ms){var q=new Date(ms).toLocaleString("sv-SE",{timeZone:TZ0});return +q.slice(11,13)*60+ +q.slice(14,16);}
+var W=null,AM=false;
+try{
+ var ls=new Date().toLocaleString("sv-SE",{timeZone:TZ0});
+ var y=+ls.slice(0,4),mo=+ls.slice(5,7)-1,d=+ls.slice(8,10),m=+ls.slice(11,13)*60+ +ls.slice(14,16);
+ var sr=locMin(sunUTC0(y,mo,d,true)),ss=locMin(sunUTC0(y,mo,d,false)),day,night;
+ AM=m<720;
+ if(m>=sr&&m<=ss){day=Math.min(1,Math.min(m-sr,ss-m)/60);night=0;}
+ else{day=0;night=Math.min(1,(m<sr?sr-m:m-ss)/60);}
+ W=[day,1-day-night,night];
+}catch(e){}
+if(!W){var hh=new Date().getHours();W=(hh>=7&&hh<19)?[1,0,0]:[0,0,1];}
+window.earlyW=W;
+var guess=W[1]>=0.35?"assets/zakat.mp4":(W[2]>=0.5?"assets/yasna_night.mp4":"assets/sunny.mp4");
+var lv=null;
+try{lv=localStorage.getItem("wx_last_vid");}catch(e){}
+/* если последнее видео - "по времени суток" (солнце/закат/ночь), берём то, что подходит ПО ВРЕМЕНИ СЕЙЧАС */
+if(!lv||lv==="assets/sunny.mp4"||lv==="assets/yasna_night.mp4"||lv==="assets/zakat.mp4")lv=guess;
+window.earlyVid=lv;
+try{pp=localStorage.getItem("wx_poster_"+lv);}catch(e){}
 if(pp){s.background="url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
-else{var h=new Date().getHours(),g;
- if(h>=8&&h<17)g="linear-gradient(#3f86d6,#a9d3f5)";           /* день */
- else if(h>=17&&h<21)g="linear-gradient(#2b2a5c,#d98a6a)";     /* вечер */
- else if(h>=5&&h<8)g="linear-gradient(#3a4a7c,#e8a98a)";       /* утро */
- else g="linear-gradient(#050b2c,#14224f)";                    /* ночь */
- s.background=g;}})();
+else{
+ var g;
+ if(W[1]>=0.35)g=AM?"linear-gradient(#3a4a7c,#e8a98a)":"linear-gradient(#2b2a5c,#d98a6a)";
+ else if(W[2]>=0.5)g="linear-gradient(#050b2c,#14224f)";
+ else g="linear-gradient(#3f86d6,#a9d3f5)";
+ s.background=g;
+}
+})();
 </script>
 <meta name="viewport" content="width=1156, initial-scale=1.0">
 <title>Часы и погода</title>
@@ -1638,7 +1672,7 @@ function applyBg(d, noVideo) {
     fake = { current: { weather_code: 0, is_day: (h >= 7 && h < 19) ? 1 : 0, time: "" } };
     var p = wxState(0), w, cc = cloudFor(0);
     if (bgForce && BG_PRESETS[bgForce]) { applyBg(fake); return; }
-    w = fake.current.is_day ? [1, 0, 0] : [0, 0, 1];
+    w = window.earlyW || (fake.current.is_day ? [1, 0, 0] : [0, 0, 1]);
     p.cover = cc[0]; p.dark = cc[1];
     p.day = w[0]; p.dusk = w[1]; p.night = w[2];
     setScene(p);
@@ -1945,7 +1979,7 @@ function loadWeather() {
     if (!VID.file) {
         var lv = null;
         try { lv = localStorage.getItem("wx_last_vid"); } catch (e) {}
-        if (!lv) { var hh = new Date().getHours(); lv = (hh >= 7 && hh < 19) ? V.sunny : V.clearNight; }
+        if (!lv || lv === V.sunny || lv === V.clearNight || lv === V.zakat) lv = window.earlyVid || lv || V.sunny;
         vidSet(lv);
     }
     loadWeather();
