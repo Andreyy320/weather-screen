@@ -46,12 +46,12 @@ let missing = [];
 // убираем local(...) — чтобы гарантированно использовались ТВОИ файлы
 html = html.replace(/local\("[^"]*"\),\s*/g, "");
 
-html = html.replace(/url\("fonts\/([^"]+)"\)\s*format\("opentype"\)/g, (m, name) => {
+html = html.replace(/url\("fonts\/([^"]+)"\)\s*format\("(?:opentype|woff2)"\)/g, (m, name) => {
   const f = find(name);
   if (!f) { missing.push(name); return m; }
   const b64 = fs.readFileSync(f).toString("base64");
   console.log("OK  ", name, "(" + Math.round(b64.length / 1024) + " KB)");
-  return 'url(data:font/otf;base64,' + b64 + ') format("opentype")';
+  return 'url(data:font/woff2;base64,' + b64 + ') format("woff2")';
 });
 
 if (missing.length) {

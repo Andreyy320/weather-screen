@@ -6,14 +6,14 @@
 // (например 'weather-assets-v2'), иначе будет отдаваться старый файл из кэша.
 // Новое видео/шрифт добавил — впиши его в ASSET_LIST ниже (хотя и без этого оно закэшируется при первом показе).
 
-var CACHE  = 'weather-screen-v6';
-var ASSETS = 'weather-assets-v3';
+var CACHE  = 'weather-screen-v7';
+var ASSETS = 'weather-assets-v4';
 
 var ASSET_LIST = [
-  'fonts/SF-Pro-Display-Regular.otf',
-  'fonts/SF-Pro-Display-Medium.otf',
-  'fonts/SF-Pro-Text-Medium.otf',
-  'fonts/SF-Pro-Text-Semibold.otf',
+  'fonts/SF-Pro-Display-Regular.woff2',
+  'fonts/SF-Pro-Display-Medium.woff2',
+  'fonts/SF-Pro-Text-Medium.woff2',
+  'fonts/SF-Pro-Text-Semibold.woff2',
   'assets/fog.mp4',
   'assets/pasmyrno.mp4',
   'assets/peremen_oblako.mp4',
@@ -29,7 +29,7 @@ var ASSET_LIST = [
   'assets/zakat.mp4'
 ].map(function (p) { return new URL(p, self.registration.scope).href; });
 
-var ASSET_RE = /\.(mp4|webm|otf)$/i;
+var ASSET_RE = /\.(mp4|webm|woff2)$/i;
 var inflight = {};
 
 // скачать файл ЦЕЛИКОМ и положить в кэш (если его там ещё нет); никогда не падает
@@ -112,11 +112,6 @@ function report() {
   }).catch(function () {});
 }
 
-// страница просит «докачай, чего не хватает» (при загрузке и раз в 10 минут).
-// Уже скачанное пропускается, так что это дёшево. Если браузер прервал скачивание — следующий запрос продолжит.
-self.addEventListener('message', function (e) {
-  if (e.data === 'precache') e.waitUntil(report().then(precacheAssets).then(report));
-});
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(

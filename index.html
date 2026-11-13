@@ -25,13 +25,13 @@ else{var h=new Date().getHours(),g;
   Проверка: открой index.html?debug  — внизу слева покажет, какие шрифты загрузились.
   ===================================================================== */
 @font-face { font-family: "SF Pro Display"; font-weight: 400; font-style: normal; font-display: block;
-  src: local("SF Pro Display Regular"), local("SFProDisplay-Regular"), url("fonts/SF-Pro-Display-Regular.otf") format("opentype"); }
+  src: local("SF Pro Display Regular"), local("SFProDisplay-Regular"), url("fonts/SF-Pro-Display-Regular.woff2") format("woff2"); }
 @font-face { font-family: "SF Pro Display"; font-weight: 500; font-style: normal; font-display: block;
-  src: local("SF Pro Display Medium"), local("SFProDisplay-Medium"), url("fonts/SF-Pro-Display-Medium.otf") format("opentype"); }
+  src: local("SF Pro Display Medium"), local("SFProDisplay-Medium"), url("fonts/SF-Pro-Display-Medium.woff2") format("woff2"); }
 @font-face { font-family: "SF Pro Text"; font-weight: 500; font-style: normal; font-display: block;
-  src: local("SF Pro Text Medium"), local("SFProText-Medium"), url("fonts/SF-Pro-Text-Medium.otf") format("opentype"); }
+  src: local("SF Pro Text Medium"), local("SFProText-Medium"), url("fonts/SF-Pro-Text-Medium.woff2") format("woff2"); }
 @font-face { font-family: "SF Pro Text"; font-weight: 600; font-style: normal; font-display: block;
-  src: local("SF Pro Text Semibold"), local("SFProText-Semibold"), url("fonts/SF-Pro-Text-Semibold.otf") format("opentype"); }
+  src: local("SF Pro Text Semibold"), local("SFProText-Semibold"), url("fonts/SF-Pro-Text-Semibold.woff2") format("woff2"); }
 
 :root {
   --f-disp: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
@@ -2051,7 +2051,7 @@ if (location.search.indexOf("debug") > -1) {
         });
         navigator.serviceWorker.ready.then(function (reg) {
             function ping() { if (reg.active) reg.active.postMessage({ type: "precache", first: VID.file });}
-                        setTimeout(ping, 30000);
+                        setTimeout(ping, 60000);
             setInterval(ping, 10 * 60 * 1000);
         });
     }
