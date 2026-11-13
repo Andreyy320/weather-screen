@@ -36,8 +36,14 @@ try{lv=localStorage.getItem("wx_last_vid");}catch(e){}
 /* если последнее видео - "по времени суток" (солнце/закат/ночь), берём то, что подходит ПО ВРЕМЕНИ СЕЙЧАС */
 if(!lv||lv==="assets/sunny.mp4"||lv==="assets/yasna_night.mp4"||lv==="assets/zakat.mp4")lv=guess;
 window.earlyVid=lv;
+/* затемнение, которое этому ролику нужно ПРЯМО СЕЙЧАС (дневные ролики ночью/в сумерки) —
+   чтобы при старте не было светлой вспышки до загрузки погоды. Считается так же, как scrim ниже в основном скрипте. */
+var nat=(lv==="assets/yasna_night.mp4"||lv==="assets/rain_night.mp4"||lv==="assets/storm_night.mp4"||lv==="assets/zakat.mp4");
+var dop=Math.min(0.72,0.06+(nat?0:(W[2]*0.58+W[1]*0.22)));
+var drgb=W[2]>=0.5?"5,11,44":(W[1]>0.2?(AM?"74,53,80":"42,23,64"):"5,11,44");
+window.earlyDim={op:dop,rgb:drgb};
 try{pp=localStorage.getItem("wx_poster_"+lv);}catch(e){}
-if(pp){s.background="url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
+if(pp){var dg="linear-gradient(rgba("+drgb+","+dop+"),rgba("+drgb+","+dop+"))";s.background=dg+" 0 0 / 100% 100% no-repeat,url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
 else{
  var g;
  if(W[1]>=0.35)g=AM?"linear-gradient(#3a4a7c,#e8a98a)":"linear-gradient(#2b2a5c,#d98a6a)";
@@ -1626,6 +1632,7 @@ function updateWeatherVideo(code, w) {
         VID.log.push(code + "|" + r.file);
         if (VID.log.length > 6) VID.log.shift();
     }
+    var changing = !!r.file && r.file !== VID.file;   // ролик меняется -> затемнение должно меняться так же быстро, как сам ролик
       vidSet(r.file);
              try { if (r.file) localStorage.setItem("wx_last_vid", r.file); } catch (e) {}
     if (!r.file) bootStep("vid");
@@ -1638,6 +1645,7 @@ var dk = nativeNight ? 0 : (w[2] * 0.58 + w[1] * 0.22);   // было 0.46 и 0.
              : (w[1] > 0.2 ? (TOD_AM ? "#4a3550" : "#2a1740")       // утро: розоватый, вечер: фиолетовый
              : "#050b2c");
     $("scrim").style.background = tint;
+    $("scrim").style.transition = changing ? "opacity " + VID.fade + "ms ease" : "";   // "" = обычные плавные 3 с (закат -> ночь)
    $("scrim").style.opacity = Math.min(0.72, baseOp + dk);    // было 0.62
 }
     /* слой с каплями включаем только когда он нужен — иначе он зря грузит плеер */
@@ -1982,6 +1990,8 @@ function loadWeather() {
         var lv = null;
         try { lv = localStorage.getItem("wx_last_vid"); } catch (e) {}
         if (!lv || lv === V.sunny || lv === V.clearNight || lv === V.zakat) lv = window.earlyVid || lv || V.sunny;
+        /* сразу ставим нужное затемнение (посчитано в начале страницы), а не ждём ответа погоды */
+        if (window.earlyDim) { $("scrim").style.background = "rgb(" + window.earlyDim.rgb + ")"; $("scrim").style.opacity = window.earlyDim.op; }
         vidSet(lv);
     }
     loadWeather();
