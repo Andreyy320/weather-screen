@@ -7,7 +7,7 @@
 // Новое видео/шрифт добавил — впиши его в ASSET_LIST ниже (хотя и без этого оно закэшируется при первом показе).
 
 var CACHE  = 'weather-screen-v4';
-var ASSETS = 'weather-assets-v1';
+var ASSETS = 'weather-assets-v3';
 
 var ASSET_LIST = [
   'fonts/SF-Pro-Display-Regular.otf',
@@ -17,6 +17,7 @@ var ASSET_LIST = [
   'assets/fog.mp4',
   'assets/pasmyrno.mp4',
   'assets/peremen_oblako.mp4',
+  'assets/perem_sunny.mp4',
   'assets/rain.mp4',
   'assets/rain_light.mp4',
   'assets/rain_night.mp4',

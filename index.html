@@ -1188,7 +1188,7 @@ function todWeights(d) {
 }
 
 var BG_PRESETS = {
-    clear: [0, "d"], cloud: [2, "d"], overcast: [3, "d"], rain: [63, "d"], snow: [73, "d"], storm: [95, "d"], fog: [45, "d"],
+    clear: [0, "d"], cloud: [2, "d"], variable: [2, "d", 1], overcast: [3, "d"], rain: [63, "d"], snow: [73, "d"], storm: [95, "d"], fog: [45, "d"],
     mostly: [1, "d"], drizzle: [53, "d"], lightrain: [61, "d"], nightlightrain: [61, "n"], dusk: [1, "s"],
     night: [0, "n"], nightcloud: [2, "n"], nightovercast: [3, "n"], nightfog: [45, "n"],
     nightrain: [63, "n"], nightsnow: [73, "n"], stormnight: [95, "n"]
@@ -1283,7 +1283,8 @@ var V = {
     zakat:      "assets/zakat.mp4",
     fog:        "assets/fog.mp4",
     overcast:   "assets/pasmyrno.mp4",
-    partly:     "assets/peremen_oblako.mp4",
+    partly:     "assets/peremen_oblako.mp4",      // ночью: переменная облачность
+    partlySun:  "assets/perem_sunny.mp4",         // днём: местами солнечно
     rain:       "assets/rain.mp4",
     rainLight:  "assets/rain_light.mp4",      // небольшой дождь (если файла нет — пасмурное видео + капли кодом)
     rainNight:  "assets/rain_night.mp4",
@@ -1306,6 +1307,7 @@ var SPEED_FILE = {
     "assets/fog.mp4": 1,
     "assets/pasmyrno.mp4": 1,
     "assets/peremen_oblako.mp4": 1,
+    "assets/perem_sunny.mp4": 1,
     "assets/rain.mp4": 1,
     "assets/rain_night.mp4": 1,
     "assets/snow.mp4": 1,
@@ -1561,7 +1563,7 @@ function pickVideo(code, w) {
     else if (dusk && code <= 2)              file = V.zakat;                 // закат/рассвет — только при ясной и малооблачной погоде
     else if (code === 45 || code === 48)   { file = V.fog; dim = night; }
     else if (code === 3)                   { file = V.overcast; dim = night; }
-    else if (code === 2)                   { file = V.partly; dim = night; }
+    else if (code === 2)                   { file = (night || HEAVY) ? V.partly : V.partlySun; dim = night; }   // «местами солнечно» днём — своё видео, «переменная облачность» — своё
     else if (code === 0 || code === 1)       file = night ? V.clearNight : V.sunny;
 
     /* dim = дневной ролик показываем ночью -> затемняем */
@@ -1600,9 +1602,11 @@ function applyBg(d, noVideo) {
     var p, w, cc, code;
     if (bgForce && BG_PRESETS[bgForce]) {
         code = BG_PRESETS[bgForce][0];
+        HEAVY = !!BG_PRESETS[bgForce][2];
         w = BG_PRESETS[bgForce][1] === "d" ? [1, 0, 0] : (BG_PRESETS[bgForce][1] === "s" ? [0, 1, 0] : [0, 0, 1]);
     } else {
         code = effCode(d.current.weather_code, d.current.cloud_cover);
+        HEAVY = isHeavy(d.current.cloud_cover);
         w = todWeights(d);
     }
     cc = cloudFor(code);
@@ -1701,10 +1705,15 @@ var SLOTS = 5;          // сколько ячеек в почасовом пр�
 var DAYS_COUNT =5;     // сколько дней запрашиваем (нужны для восхода/заката и почасового прогноза)
 var REFRESH_OK = 15 * 60 * 1000;
 var REFRESH_FAIL = 60 * 1000;
-var CACHE_KEY = "wx_tiraspol_v5";
+var CACHE_KEY = "wx_tiraspol_v6";
 var CACHE_MAX_AGE = 20 * 60 * 1000;      // кеш старше 20 минут не используем для выбора видео
 var staleCache = null;
 
+/* ===== МОДЕЛЬ ПОГОДЫ =====
+   "ecmwf_ifs025" — европейская модель (ECMWF); для Тирасполя совпала с Яндексом.
+   Запасные: "gfs_seamless" (американская), "icon_seamless" (немецкая, была раньше).
+   Если оставить пустую строку "" — сервис сам выберет модель. */
+var WX_MODEL = "ecmwf_ifs025";
 var URL_API = "https://api.open-meteo.com/v1/forecast"
   + "?latitude=" + LAT + "&longitude=" + LON
   + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,cloud_cover"
@@ -1712,16 +1721,27 @@ var URL_API = "https://api.open-meteo.com/v1/forecast"
   + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
   + "&wind_speed_unit=ms&temperature_unit=celsius"
   + "&timezone=" + encodeURIComponent(TZ)
-  + "&forecast_days=" + DAYS_COUNT;
+  + "&forecast_days=" + DAYS_COUNT
+  + (WX_MODEL ? "&models=" + WX_MODEL : "");
 
 /* Уточняем «ясно / малооблачно / местами солнечно / пасмурно» по реальному % облачности.
    Код погоды сервиса часто округляет в сторону «пасмурно». Пороги можно менять. */
 var lastWx = "";
+/* ===== ПОРОГИ ОБЛАЧНОСТИ (в %, данные Open-Meteo) — можно менять =====
+   до 15   — ясно
+   15–40   — малооблачно
+   40–CLOUD_VARIABLE — «Местами солнечно»   (видео perem_sunny.mp4)
+   CLOUD_VARIABLE–CLOUD_OVERCAST — «Переменная облачность» (видео peremen_oblako.mp4)
+   от CLOUD_OVERCAST — «Пасмурно» */
+var CLOUD_VARIABLE = 70;
+var CLOUD_OVERCAST = 90;
+var HEAVY = false;     // true = «переменная облачность» (облаков больше, чем «местами солнечно»)
+function isHeavy(cloud) { return cloud !== undefined && cloud !== null && cloud >= CLOUD_VARIABLE; }
 function effCode(code, cloud) {
     if (code > 3 || cloud === undefined || cloud === null) return code;
     if (cloud < 15) return 0;      // ясно
     if (cloud < 40) return 1;      // малооблачно
-    if (cloud < 90) return 2;      // местами солнечно
+    if (cloud < CLOUD_OVERCAST) return 2;      // местами солнечно / переменная облачность
     return 3;                      // пасмурно (только при почти полностью закрытом небе)
 }
 
@@ -1740,7 +1760,7 @@ function iconFor(code, isDay) {
 function condText(code, isDay) {
     if (code === 0)  return isDay ? "Солнечно" : "Ясно";
     if (code === 1)  return isDay ? "Малооблачно" : "Ясно";
-    if (code === 2)  return isDay ? "Местами солнечно" : "Переменная облачность";
+    if (code === 2)  return (isDay && !HEAVY) ? "Местами солнечно" : "Переменная облачность";
     if (code === 3)  return "Пасмурно";
     if (code === 45 || code === 48) return "Туман";
     if (code >= 51 && code <= 55) return "Морось";
@@ -1819,8 +1839,9 @@ function render(d, noVideo) {
 
     /* ---- слайд 1 ---- */
     var wcode = effCode(cur.weather_code, cur.cloud_cover);
-    lastWx = "API: код " + cur.weather_code + ", облачность " + cur.cloud_cover + "%  ->  " + wcode;
-        if (bgForce && BG_PRESETS[bgForce]) { wcode = BG_PRESETS[bgForce][0]; isDay = BG_PRESETS[bgForce][1] !== "n"; }
+    HEAVY = isHeavy(cur.cloud_cover);
+    lastWx = "API: код " + cur.weather_code + ", облачность " + cur.cloud_cover + "%  ->  " + wcode + (wcode === 2 ? (HEAVY ? " (переменная)" : " (местами солнечно)") : "") + "  пороги " + CLOUD_VARIABLE + "/" + CLOUD_OVERCAST;
+        if (bgForce && BG_PRESETS[bgForce]) { wcode = BG_PRESETS[bgForce][0]; isDay = BG_PRESETS[bgForce][1] !== "n"; HEAVY = !!BG_PRESETS[bgForce][2]; }
             try { setCardFx(wcode, isDay); } catch (e) {}
     var bigIcon = iconFor(wcode, isDay);
     if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
@@ -1828,7 +1849,7 @@ function render(d, noVideo) {
     document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
    document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
 document.getElementById("bigCond").textContent = condText(wcode, isDay);
-document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature);
+document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature != null ? cur.apparent_temperature : cur.temperature_2m);
     if (d.daily && d.daily.temperature_2m_min && d.daily.temperature_2m_max) {
         document.getElementById("mmMin").textContent = "Мин. " + fmtTemp(d.daily.temperature_2m_min[0]);
         document.getElementById("mmMax").textContent = "Макс. " + fmtTemp(d.daily.temperature_2m_max[0]);
