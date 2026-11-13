@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script>
 (function(){var s=document.documentElement.style,pp=null;
-try{pp=localStorage.getItem("wx_poster");}catch(e){}
+try{var lv=localStorage.getItem("wx_last_vid");pp=(lv&&localStorage.getItem("wx_poster_"+lv))||localStorage.getItem("wx_poster");}catch(e){}
 if(pp){s.background="url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
 else{var h=new Date().getHours(),g;
  if(h>=8&&h<17)g="linear-gradient(#3f86d6,#a9d3f5)";           /* день */
@@ -497,7 +497,6 @@ html.boot .scene { display: none; }
 
 </head>
 <body>
-<script>try { var pp = localStorage.getItem("wx_poster"); if (pp) document.body.style.background = "url(" + pp + ") 0 0 / 100% 100% no-repeat"; } catch (e) {}</script>
 <!-- ===================== ОБЩИЕ ИКОНКИ ===================== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1401,7 +1400,7 @@ function startClip(v, file, reuse, onReady, onFail) {
     function bad() { if (finished) return; finished = true; cleanup(); onFail(); }
     v.addEventListener("playing", ok);
     v.addEventListener("error", bad);
-    timer = setTimeout(bad, 12000);
+  timer = setTimeout(bad, 60000);
        v.pause();
     v.loop = SIMPLE;
     if (reuse && v._file === file) {
@@ -1441,12 +1440,17 @@ function flushPending() {
     VID.pending = null;
     vidSet(f);
 }
-function savePoster(v) {
+function savePoster(v, file) {
     try {
+        var vw = v.videoWidth, vh = v.videoHeight;
+        if (!vw || !vh) return;
         var c = document.createElement("canvas");
         c.width = 1156; c.height = 256;
-c.getContext("2d").drawImage(v, 0, 0, 1156, 256);
-localStorage.setItem("wx_poster", c.toDataURL("image/jpeg", 0.8));
+        var k = Math.max(1156 / vw, 256 / vh), w = vw * k, h = vh * k;
+        c.getContext("2d").drawImage(v, (1156 - w) / 2, (256 - h) * clipY(file) / 100, w, h);
+        var u = c.toDataURL("image/jpeg", 0.85);
+        localStorage.setItem("wx_poster_" + file, u);
+        localStorage.setItem("wx_poster", u);
     } catch (e) {}
 }
 /* смена ролика */
@@ -1465,7 +1469,7 @@ function vidSwitch(file) {
         fadeIn(nv, VID.fade, function () {
             if (old) hideNow(old);
             showSvg(false);                      // видео полностью закрывает небо — небо выключаем
-                        setTimeout(function () { savePoster(nv); }, 1500);
+                        setTimeout(function () { savePoster(nv, file); }, 1500);
             VID.busy = false;
             flushPending();
         });
@@ -1475,7 +1479,7 @@ function vidSwitch(file) {
         VID.file = prevFile;
         VID.busy = false;
         clearTimeout(VID.retryTimer);
-        VID.retryTimer = setTimeout(function () { if (!VID.busy) vidSet(VID.want); }, 30000);
+        VID.retryTimer = setTimeout(function () { if (!VID.busy) vidSet(VID.want); }, 10000);
         flushPending();
     });
 }
@@ -2046,7 +2050,7 @@ if (location.search.indexOf("debug") > -1) {
             if (e.data && e.data.type === "cache") log("офлайн-кэш: " + e.data.cached + " из " + e.data.total + " файлов");
         });
         navigator.serviceWorker.ready.then(function (reg) {
-            function ping() { if (reg.active) reg.active.postMessage("precache"); }
+            function ping() { if (reg.active) reg.active.postMessage({ type: "precache", first: VID.file });}
                         setTimeout(ping, 30000);
             setInterval(ping, 10 * 60 * 1000);
         });

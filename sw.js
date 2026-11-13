@@ -47,11 +47,20 @@ function cacheFull(url) {
 }
 
 // качаем по одному, чтобы не забивать канал
-function precacheAssets() {
+function precacheAssets(first) {
   var p = Promise.resolve();
-  ASSET_LIST.forEach(function (u) { p = p.then(function () { return cacheFull(u); }); });
+  var list = ASSET_LIST.slice();
+  if (first) {
+    var f = new URL(first, self.registration.scope).href, i = list.indexOf(f);
+    if (i > 0) { list.splice(i, 1); list.unshift(f); }
+  }
+  list.forEach(function (u) { p = p.then(function () { return cacheFull(u); }); });
   return p;
 }
+self.addEventListener('message', function (e) {
+  var d = e.data;
+  if (d && d.type === 'precache') e.waitUntil(report().then(function () { return precacheAssets(d.first); }).then(report));
+});
 
 // видео просит куски файла (Range) — отдаём нужный кусок из закэшированного целого файла
 function serveAsset(e) {
