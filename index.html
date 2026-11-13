@@ -3,6 +3,33 @@
   <head>
 <meta charset="UTF-8">
 <script>
+/* ===== ТОЛЬКО ДЛЯ ПРОВЕРКИ (работает, только если в адресе есть ?time=...; иначе ничего не делает) =====
+   index.html?time=07:30            — притвориться, что сейчас 07:30 (часы идут дальше как обычно)
+   index.html?time=00:10&cold       — то же + «холодный старт»: сохранённая погода игнорируется
+   index.html?time=00:10&cold&vid=pasmyrno   — то же + считать, что последний показанный ролик pasmyrno
+                                    (fog, snow, peremen_oblako, pasmyrno, rain, rain_light, storm ...)
+   В режиме проверки ничего не записывается в память браузера, поэтому настоящий экран не портится. */
+(function(){
+var q=location.search,mt=/[?&]time=(\d{1,2}):(\d{2})/.exec(q);
+if(!mt)return;
+var RD=Date,n=new RD(),tz="Europe/Chisinau",ls=n.toLocaleString("sv-SE",{timeZone:tz});
+var cur=+ls.slice(11,13)*60+ +ls.slice(14,16),want=+mt[1]*60+ +mt[2];
+var off=(want-cur)*60000;
+function FD(){var a=arguments;if(a.length===0)return new RD(RD.now()+off);return new (Function.prototype.bind.apply(RD,[null].concat([].slice.call(a))))();}
+FD.prototype=RD.prototype;FD.now=function(){return RD.now()+off;};FD.UTC=RD.UTC;FD.parse=RD.parse;
+window.Date=FD;window.FAKE_TIME=1;
+var cold=/[?&]cold\b/.test(q),vm=/[?&]vid=([a-z_]+)/.exec(q),gi=Storage.prototype.getItem;
+Storage.prototype.setItem=function(){};
+Storage.prototype.getItem=function(k){
+ if(k==="wx_last_vid"&&vm)return"assets/"+vm[1]+".mp4";
+ if(k==="wx_last_code"&&vm)return null;
+ if(cold&&String(k).indexOf("wx_")===0&&k!=="wx_last_vid"&&k.indexOf("wx_poster_")!==0)return null;
+ if(cold&&!vm&&k==="wx_last_vid")return null;
+ return gi.call(this,k);
+};
+})();
+</script>
+<script>
 (function(){
 var s=document.documentElement.style,pp=null;
 var LA=46.84,LO=29.58,RD=Math.PI/180,TZ0="Europe/Chisinau";
@@ -31,22 +58,39 @@ try{
 if(!W){var hh=new Date().getHours();W=(hh>=7&&hh<19)?[1,0,0]:[0,0,1];}
 window.earlyW=W;
 var guess=W[1]>=0.35?"assets/zakat.mp4":(W[2]>=0.5?"assets/yasna_night.mp4":"assets/sunny.mp4");
-var lv=null;
+var lv=null,lc=null,lt=false;
 try{lv=localStorage.getItem("wx_last_vid");}catch(e){}
-/* если последнее видео - "по времени суток" (солнце/закат/ночь), берём то, что подходит ПО ВРЕМЕНИ СЕЙЧАС */
-if(!lv||lv==="assets/sunny.mp4"||lv==="assets/yasna_night.mp4"||lv==="assets/zakat.mp4")lv=guess;
+try{lc=localStorage.getItem("wx_last_code");}catch(e){}
+var known=!!(lv||lc);
+window.earlyKnown=known;
+/* Если помним последнюю погоду — берём ролик ДЛЯ ЭТОЙ ПОГОДЫ, но с учётом времени суток СЕЙЧАС
+   (копия логики pickVideo из основного скрипта: если там меняешь выбор ролика — поправь и здесь). */
+if(lc){
+ var cp=lc.split("|"),cd=+cp[0],hv=cp[1]==="1",nt=W[2]>=0.5,dk=W[1]>=0.35,A="assets/";
+ var sn=(cd>=71&&cd<=77)||cd===85||cd===86,rn=(cd>=51&&cd<=67)||(cd>=80&&cd<=82),li=(cd===51||cd===53||cd===55||cd===61||cd===80);
+ if(cd>=95)lv=A+(nt?"storm_night":"storm")+".mp4";
+ else if(sn)lv=A+"snow.mp4";
+ else if(rn&&li){lv=A+"pasmyrno.mp4";lt=true;}
+ else if(rn)lv=A+(nt?"rain_night":"rain")+".mp4";
+ else if(dk&&cd<=2)lv=A+"zakat.mp4";
+ else if(cd===45||cd===48)lv=A+"fog.mp4";
+ else if(cd===3)lv=A+"pasmyrno.mp4";
+ else if(cd===2)lv=A+((nt||hv)?"peremen_oblako":"perem_sunny")+".mp4";
+ else lv=A+(nt?"yasna_night":"sunny")+".mp4";
+}else if(!lv||lv==="assets/sunny.mp4"||lv==="assets/yasna_night.mp4"||lv==="assets/zakat.mp4")lv=guess;
 window.earlyVid=lv;
 /* затемнение, которое этому ролику нужно ПРЯМО СЕЙЧАС (дневные ролики ночью/в сумерки) —
    чтобы при старте не было светлой вспышки до загрузки погоды. Считается так же, как scrim ниже в основном скрипте. */
 var nat=(lv==="assets/yasna_night.mp4"||lv==="assets/rain_night.mp4"||lv==="assets/storm_night.mp4"||lv==="assets/zakat.mp4");
-var dop=Math.min(0.72,0.06+(nat?0:(W[2]*0.58+W[1]*0.22)));
+var dop=Math.min(0.72,(lt?0.14:0.06)+(nat?0:(W[2]*0.58+W[1]*0.22)));
 var drgb=W[2]>=0.5?"5,11,44":(W[1]>0.2?(AM?"74,53,80":"42,23,64"):"5,11,44");
 window.earlyDim={op:dop,rgb:drgb};
 try{pp=localStorage.getItem("wx_poster_"+lv);}catch(e){}
 if(pp){var dg="linear-gradient(rgba("+drgb+","+dop+"),rgba("+drgb+","+dop+"))";s.background=dg+" 0 0 / 100% 100% no-repeat,url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
 else{
  var g;
- if(W[1]>=0.35)g=AM?"linear-gradient(#3a4a7c,#e8a98a)":"linear-gradient(#2b2a5c,#d98a6a)";
+ if(!known)g="#0b1020";
+ else if(W[1]>=0.35)g=AM?"linear-gradient(#3a4a7c,#e8a98a)":"linear-gradient(#2b2a5c,#d98a6a)";
  else if(W[2]>=0.5)g="linear-gradient(#050b2c,#14224f)";
  else g="linear-gradient(#3f86d6,#a9d3f5)";
  s.background=g;
@@ -1108,7 +1152,7 @@ function bootStep(k) {
     BOOT[k] = 1;
     if (BOOT.font && BOOT.wx && BOOT.vid) bootReveal();
 }
-setTimeout(bootReveal, 800);
+setTimeout(bootReveal, window.earlyKnown ? 800 : 6000);
 (function () {
     if (!document.fonts || !document.fonts.load) { bootStep("font"); return; }
     var f = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'], n = 0;
@@ -1635,6 +1679,7 @@ function updateWeatherVideo(code, w) {
     var changing = !!r.file && r.file !== VID.file;   // ролик меняется -> затемнение должно меняться так же быстро, как сам ролик
       vidSet(r.file);
              try { if (r.file) localStorage.setItem("wx_last_vid", r.file); } catch (e) {}
+    try { if (r.file && !(bgForce && BG_PRESETS[bgForce])) localStorage.setItem("wx_last_code", code + "|" + (HEAVY ? 1 : 0)); } catch (e) {}
     if (!r.file) bootStep("vid");
 
     if (r.file) {
@@ -1891,7 +1936,20 @@ function nextSunEvent(d) {
     return best;
 }
 
+function fakeTime(d) {      /* только для ?time=...: чтобы данные погоды не «жили» в реальном времени */
+    if (!window.FAKE_TIME || !d || !d.current) return d;
+    try {
+        var n = new Date().toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T");
+        d.current.time = n;
+        if (d.daily && d.daily.sunrise && d.daily.sunset && d.daily.sunrise[0] && d.daily.sunset[0]) {
+            var m = toMin(n);
+            d.current.is_day = (m >= toMin(d.daily.sunrise[0]) && m <= toMin(d.daily.sunset[0])) ? 1 : 0;
+        }
+    } catch (e) {}
+    return d;
+}
 function render(d, noVideo) {
+    d = fakeTime(d);
     LASTD = d;
     var cur = d.current;
     var isDay = cur.is_day === 1;
@@ -1987,12 +2045,14 @@ function loadWeather() {
         /* видео стартует СРАЗУ, не дожидаясь ответа погоды: последнее показанное, а если его нет (кэш не живёт) —
        по времени суток. Придёт погода и она другая — плавно сменится. */
     if (!VID.file) {
-        var lv = null;
-        try { lv = localStorage.getItem("wx_last_vid"); } catch (e) {}
-        if (!lv || lv === V.sunny || lv === V.clearNight || lv === V.zakat) lv = window.earlyVid || lv || V.sunny;
-        /* сразу ставим нужное затемнение (посчитано в начале страницы), а не ждём ответа погоды */
-        if (window.earlyDim) { $("scrim").style.background = "rgb(" + window.earlyDim.rgb + ")"; $("scrim").style.opacity = window.earlyDim.op; }
-        vidSet(lv);
+        var startGuess = function () {
+            var lv = window.earlyVid || V.sunny;
+            /* сразу ставим нужное затемнение (посчитано в начале страницы), а не ждём ответа погоды */
+            if (window.earlyDim) { $("scrim").style.background = "rgb(" + window.earlyDim.rgb + ")"; $("scrim").style.opacity = window.earlyDim.op; }
+            vidSet(lv);
+        };
+        if (window.earlyKnown) startGuess();
+        else setTimeout(function () { if (!VID.file && !VID.want && !VID.busy) startGuess(); }, 5000);   // ничего не помним: ждём настоящую погоду; нет интернета 5 с -> по времени суток
     }
     loadWeather();
 })();
