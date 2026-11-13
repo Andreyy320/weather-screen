@@ -2,6 +2,17 @@
 <html lang="ru" class="boot">
   <head>
 <meta charset="UTF-8">
+<script>
+(function(){var s=document.documentElement.style,pp=null;
+try{pp=localStorage.getItem("wx_poster");}catch(e){}
+if(pp){s.background="url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
+else{var h=new Date().getHours(),g;
+ if(h>=8&&h<17)g="linear-gradient(#3f86d6,#a9d3f5)";           /* день */
+ else if(h>=17&&h<21)g="linear-gradient(#2b2a5c,#d98a6a)";     /* вечер */
+ else if(h>=5&&h<8)g="linear-gradient(#3a4a7c,#e8a98a)";       /* утро */
+ else g="linear-gradient(#050b2c,#14224f)";                    /* ночь */
+ s.background=g;}})();
+</script>
 <meta name="viewport" content="width=1156, initial-scale=1.0">
 <title>Часы и погода</title>
 
@@ -43,7 +54,7 @@ html, body { width: 1156px; height: 256px; overflow: hidden; }
 
 body {
     position: relative;
-        background: #0b1020;
+        background: transparent;
     color: #fff;
     font-family: var(--f-text);
     text-rendering: geometricPrecision;
@@ -478,7 +489,7 @@ body {
 html.boot .slide.on .card { opacity: 0; }
 html.boot #scrim { transition: none !important; }
 html.boot .scene { display: none; }
-.slide .card { transition: opacity .8s ease; }
+.slide .card { transition: opacity .35s ease; }
 </style>
 
 
@@ -1056,9 +1067,9 @@ function bootReveal() {
 }
 function bootStep(k) {
     BOOT[k] = 1;
-    if (BOOT.font && BOOT.wx && BOOT.vid) setTimeout(bootReveal, 150);
+    if (BOOT.font && BOOT.wx && BOOT.vid) bootReveal();
 }
-setTimeout(bootReveal, 8000);
+setTimeout(bootReveal, 800);
 (function () {
     if (!document.fonts || !document.fonts.load) { bootStep("font"); return; }
     var f = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'], n = 0;
@@ -1433,9 +1444,9 @@ function flushPending() {
 function savePoster(v) {
     try {
         var c = document.createElement("canvas");
-        c.width = 578; c.height = 128;
-        c.getContext("2d").drawImage(v, 0, 0, 578, 128);
-        localStorage.setItem("wx_poster", c.toDataURL("image/jpeg", 0.6));
+        c.width = 1156; c.height = 256;
+c.getContext("2d").drawImage(v, 0, 0, 1156, 256);
+localStorage.setItem("wx_poster", c.toDataURL("image/jpeg", 0.8));
     } catch (e) {}
 }
 /* смена ролика */
@@ -1925,7 +1936,14 @@ function loadWeather() {
         if (!fresh) staleCache = c.d;               // старые данные: текст показываем, а видео ждёт свежую погоду
       try { render(c.d, !fresh); } catch (e) {}
     }
-        if (!VID.file) { try { var lv = localStorage.getItem("wx_last_vid"); if (lv) vidSet(lv); } catch (e) {} }
+        /* видео стартует СРАЗУ, не дожидаясь ответа погоды: последнее показанное, а если его нет (кэш не живёт) —
+       по времени суток. Придёт погода и она другая — плавно сменится. */
+    if (!VID.file) {
+        var lv = null;
+        try { lv = localStorage.getItem("wx_last_vid"); } catch (e) {}
+        if (!lv) { var hh = new Date().getHours(); lv = (hh >= 7 && hh < 19) ? V.sunny : V.clearNight; }
+        vidSet(lv);
+    }
     loadWeather();
 })();
 
