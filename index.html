@@ -579,6 +579,11 @@ html.boot .scene { display: none; }
 
 
 
+<style>
+/* ===== ВСТУПИТЕЛЬНОЕ ВИДЕО ВНУТРИ СТРАНИЦЫ (лежит поверх всего, страница под ним уже готова) ===== */
+#introVid { position:absolute; left:0; top:0; width:1156px; height:256px; object-fit:cover;
+  z-index:10; opacity:0; background:#000; pointer-events:none; }
+</style>
 </head>
 <body>
 <!-- ===================== ОБЩИЕ ИКОНКИ ===================== -->
@@ -1139,6 +1144,7 @@ html.boot .scene { display: none; }
 </div>
 
 
+<video id="introVid" muted playsinline preload="auto" disablepictureinpicture></video>
 <script>
   var T0 = Date.now();
 if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
@@ -1628,6 +1634,7 @@ setInterval(function () {
 /* сторожок: пауза/зависание -> перезапуск */
 var wdLast = -1, wdStuck = 0;
 function watchdog() {
+    if (window.INTRO_ON) { wdStuck = 0; return; }
     if (VID.cur < 0 || VID.busy) { wdStuck = 0; return; }
     var v = VID.slots[VID.cur];
     if (v.paused && !v.ended) { safePlay(v); wdStuck = 0; return; }
@@ -1716,7 +1723,6 @@ function applyBg(d, noVideo) {
     p.cover = cc[0]; p.dark = cc[1];
     p.day = w[0]; p.dusk = w[1]; p.night = w[2];
     setScene(p);
-    try { updateBigIcon(code, (bgForce && BG_PRESETS[bgForce]) ? BG_PRESETS[bgForce][1] !== "n" : isDayFromW(w)); } catch (e) {}
     if (!noVideo) updateWeatherVideo(code, w);
 }
 
@@ -1765,6 +1771,7 @@ function showSlide(i) {
     if (m && +m[1] >= 1 && +m[1] <= slideEls.length) { showSlide(+m[1] - 1); return; }
     showSlide(0);
         var lastSw = Date.now();
+    window.slideRestart = function () { lastSw = Date.now(); };
     setInterval(function () {
         var n = Date.now();
         if (n - lastSw < SLIDE_SECONDS * 1000 - 300) return;
@@ -1949,21 +1956,11 @@ function fakeTime(d) {      /* только для ?time=...: чтобы дан�
     } catch (e) {}
     return d;
 }
-/* иконка и подпись: ночь (луна) только когда включается ночной фон, а не ровно в минуту заката.
-   Пока играет закатный ролик — остаётся солнце. Вызывается из render и раз в минуту из applyBg. */
-function updateBigIcon(wcode, isDay) {
-    var bigIcon = iconFor(wcode, isDay);
-    if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
-    document.getElementById("bigIcUse").setAttribute("href", "#" + bigIcon);
-    document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
-    document.getElementById("bigCond").textContent = condText(wcode, isDay);
-}
-function isDayFromW(w) { return !(w[2] > 0); }   // w[2] > 0 = солнце уже село (или ещё не взошло) -> луна и «Ясно»
 function render(d, noVideo) {
     d = fakeTime(d);
     LASTD = d;
     var cur = d.current;
-    var isDay = isDayFromW(todWeights(d));
+    var isDay = cur.is_day === 1;
 
     /* ---- слайд 1 ---- */
     var wcode = effCode(cur.weather_code, cur.cloud_cover);
@@ -1971,8 +1968,12 @@ function render(d, noVideo) {
     lastWx = "API: код " + cur.weather_code + ", облачность " + cur.cloud_cover + "%  ->  " + wcode + (wcode === 2 ? (HEAVY ? " (переменная)" : " (местами солнечно)") : "") + "  пороги " + CLOUD_VARIABLE + "/" + CLOUD_OVERCAST;
         if (bgForce && BG_PRESETS[bgForce]) { wcode = BG_PRESETS[bgForce][0]; isDay = BG_PRESETS[bgForce][1] !== "n"; HEAVY = !!BG_PRESETS[bgForce][2]; }
             try { setCardFx(wcode, isDay); } catch (e) {}
-    updateBigIcon(wcode, isDay);
-document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
+    var bigIcon = iconFor(wcode, isDay);
+    if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
+    document.getElementById("bigIcUse").setAttribute("href", "#" + bigIcon);
+    document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
+   document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
+document.getElementById("bigCond").textContent = condText(wcode, isDay);
 document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature != null ? cur.apparent_temperature : cur.temperature_2m);
     if (d.daily && d.daily.temperature_2m_min && d.daily.temperature_2m_max) {
         document.getElementById("mmMin").textContent = "Мин. " + fmtTemp(d.daily.temperature_2m_min[0]);
@@ -2182,6 +2183,56 @@ if (location.search.indexOf("debug") > -1) {
             setInterval(ping, 10 * 60 * 1000);
         });
     }
+})();
+
+/* =====================================================================
+   ЦИКЛ: ВСТУПИТЕЛЬНОЕ ВИДЕО -> ЧАСЫ И ПОГОДА -> СНОВА ВИДЕО ... (без чёрного экрана)
+   Страница с погодой всё это время работает под видео, поэтому когда видео
+   заканчивается, часы и погода появляются мгновенно.
+   Настройки — три строки ниже. Проверка без видео: index.html?nointro
+   ===================================================================== */
+(function () {
+    var INTRO_FILE = "assets/intro.mp4";   // <-- имя твоего видео (положи в папку assets)
+    var INTRO_MAX  = 103;                  // длина видео в секундах (1:43), запасной таймер
+    var PAGE_SECONDS = 60;                 // сколько показывать часы и погоду
+    if (location.search.indexOf("nointro") > -1) return;
+
+    var v = document.getElementById("introVid"), phase = "", timer = 0, broken = false;
+    window.INTRO_ON = false;
+    v.muted = true; v.defaultMuted = true; v.loop = false;
+    v.src = INTRO_FILE; v.load();
+
+    function bg() { return VID.cur >= 0 ? VID.slots[VID.cur] : null; }
+
+    function startIntro() {
+        if (broken) return;
+        phase = "intro"; window.INTRO_ON = true;
+        clearTimeout(timer);
+        timer = setTimeout(endIntro, (INTRO_MAX + 3) * 1000);
+        try { v.currentTime = 0; } catch (e) {}
+        var p; try { p = v.play(); } catch (e2) { p = null; }
+        if (p && p.catch) p.catch(function () { fail(); });
+    }
+    function endIntro() {
+        clearTimeout(timer);
+        phase = "page"; window.INTRO_ON = false;
+        v.style.opacity = "0"; v.pause();
+        var b = bg(); if (b) safePlay(b);          // фоновое видео погоды продолжает играть
+        try { showSlide(0); if (window.slideRestart) window.slideRestart(); } catch (e) {}
+        if (!broken) timer = setTimeout(startIntro, PAGE_SECONDS * 1000);
+    }
+    function fail() { endIntro(); try { v.load(); } catch (e) {} }   // видео не загрузилось (нет интернета и т.п.) — этот круг показываем только часы и погоду, в следующий пробуем снова
+
+    // показываем видео только когда пошёл первый кадр — чёрного экрана не будет
+    v.addEventListener("playing", function () {
+        if (phase !== "intro") return;
+        v.style.opacity = "1";
+        var b = bg(); if (b) b.pause();            // чтобы два видео не нагружали плеер
+    });
+    v.addEventListener("ended", function () { if (phase === "intro") endIntro(); });
+    v.addEventListener("error", fail);
+
+    startIntro();
 })();
 </script>
 

@@ -7,7 +7,7 @@
 // Новое видео/шрифт добавил — впиши его в ASSET_LIST ниже (хотя и без этого оно закэшируется при первом показе).
 
 var CACHE  = 'weather-screen-v8';
-var ASSETS = 'weather-assets-v4';
+var ASSETS = 'weather-assets-v5';
 
 var ASSET_LIST = [
   'fonts/SF-Pro-Display-Regular.woff2',
@@ -26,7 +26,8 @@ var ASSET_LIST = [
   'assets/storm_night.mp4',
   'assets/sunny.mp4',
   'assets/yasna_night.mp4',
-  'assets/zakat.mp4'
+  'assets/zakat.mp4',
+  'assets/intro.mp4'
 ].map(function (p) { return new URL(p, self.registration.scope).href; });
 
 var ASSET_RE = /\.(mp4|webm|woff2)$/i;
