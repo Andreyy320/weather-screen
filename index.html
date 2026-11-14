@@ -89,7 +89,7 @@ try{pp=localStorage.getItem("wx_poster_"+lv);}catch(e){}
 if(pp){var dg="linear-gradient(rgba("+drgb+","+dop+"),rgba("+drgb+","+dop+"))";s.background=dg+" 0 0 / 100% 100% no-repeat,url("+pp+") 0 0 / 100% 100% no-repeat #0b1020";}
 else{
  var g;
- if(!known)g="#0b1020";
+ if(0)g="";
  else if(W[1]>=0.35)g=AM?"linear-gradient(#3a4a7c,#e8a98a)":"linear-gradient(#2b2a5c,#d98a6a)";
  else if(W[2]>=0.5)g="linear-gradient(#050b2c,#14224f)";
  else g="linear-gradient(#3f86d6,#a9d3f5)";
@@ -579,6 +579,11 @@ html.boot .scene { display: none; }
 
 
 
+<style>
+/* ===== ВСТУПИТЕЛЬНОЕ ВИДЕО ВНУТРИ СТРАНИЦЫ (лежит поверх всего, страница под ним уже готова) ===== */
+#introVid { position:absolute; left:0; top:0; width:1156px; height:256px; object-fit:cover;
+  z-index:10; opacity:0; background:#000; pointer-events:none; }
+</style>
 </head>
 <body>
 <!-- ===================== ОБЩИЕ ИКОНКИ ===================== -->
@@ -1139,6 +1144,7 @@ html.boot .scene { display: none; }
 </div>
 
 
+<video id="introVid" muted playsinline preload="auto" disablepictureinpicture></video>
 <script>
   var T0 = Date.now();
 if (location.search.indexOf("withblur") < 0) document.documentElement.className += " noblur";
@@ -1152,7 +1158,7 @@ function bootStep(k) {
     BOOT[k] = 1;
     if (BOOT.font && BOOT.wx && BOOT.vid) bootReveal();
 }
-setTimeout(bootReveal, window.earlyKnown ? 800 : 6000);
+setTimeout(bootReveal, 500);
 (function () {
     if (!document.fonts || !document.fonts.load) { bootStep("font"); return; }
     var f = ['500 20px "SF Pro Display"','400 20px "SF Pro Display"','600 20px "SF Pro Text"','500 20px "SF Pro Text"'], n = 0;
@@ -1628,6 +1634,7 @@ setInterval(function () {
 /* сторожок: пауза/зависание -> перезапуск */
 var wdLast = -1, wdStuck = 0;
 function watchdog() {
+    if (window.INTRO_ON) { wdStuck = 0; return; }
     if (VID.cur < 0 || VID.busy) { wdStuck = 0; return; }
     var v = VID.slots[VID.cur];
     if (v.paused && !v.ended) { safePlay(v); wdStuck = 0; return; }
@@ -1764,6 +1771,7 @@ function showSlide(i) {
     if (m && +m[1] >= 1 && +m[1] <= slideEls.length) { showSlide(+m[1] - 1); return; }
     showSlide(0);
         var lastSw = Date.now();
+    window.slideRestart = function () { lastSw = Date.now(); };
     setInterval(function () {
         var n = Date.now();
         if (n - lastSw < SLIDE_SECONDS * 1000 - 300) return;
@@ -2051,8 +2059,7 @@ function loadWeather() {
             if (window.earlyDim) { $("scrim").style.background = "rgb(" + window.earlyDim.rgb + ")"; $("scrim").style.opacity = window.earlyDim.op; }
             vidSet(lv);
         };
-        if (window.earlyKnown) startGuess();
-        else setTimeout(function () { if (!VID.file && !VID.want && !VID.busy) startGuess(); }, 5000);   // ничего не помним: ждём настоящую погоду; нет интернета 5 с -> по времени суток
+        startGuess();   // стартуем сразу: ролик по времени суток, придёт другая погода — плавно сменится
     }
     loadWeather();
 })();
@@ -2160,7 +2167,7 @@ if (location.search.indexOf("debug") > -1) {
             if (h !== base) applyUpdate();
         }, function () { if (base === null) unsure = true; });
     }
-    check();                              // запоминаем «эталон» сразу после загрузки
+    setTimeout(check, 20000);             // эталон — через 20 с, чтобы не мешать быстрому старту
     setInterval(check, CHECK_EVERY);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) check(); });
 
@@ -2176,6 +2183,56 @@ if (location.search.indexOf("debug") > -1) {
             setInterval(ping, 10 * 60 * 1000);
         });
     }
+})();
+
+/* =====================================================================
+   ЦИКЛ: ВСТУПИТЕЛЬНОЕ ВИДЕО -> ЧАСЫ И ПОГОДА -> СНОВА ВИДЕО ... (без чёрного экрана)
+   Страница с погодой всё это время работает под видео, поэтому когда видео
+   заканчивается, часы и погода появляются мгновенно.
+   Настройки — три строки ниже. Проверка без видео: index.html?nointro
+   ===================================================================== */
+(function () {
+    var INTRO_FILE = "assets/intro.mp4";   // <-- имя твоего видео (положи в папку assets)
+    var INTRO_MAX  = 103;                  // длина видео в секундах (1:43), запасной таймер
+    var PAGE_SECONDS = 60;                 // сколько показывать часы и погоду
+    if (location.search.indexOf("nointro") > -1) return;
+
+    var v = document.getElementById("introVid"), phase = "", timer = 0, broken = false;
+    window.INTRO_ON = false;
+    v.muted = true; v.defaultMuted = true; v.loop = false;
+    v.src = INTRO_FILE; v.load();
+
+    function bg() { return VID.cur >= 0 ? VID.slots[VID.cur] : null; }
+
+    function startIntro() {
+        if (broken) return;
+        phase = "intro"; window.INTRO_ON = true;
+        clearTimeout(timer);
+        timer = setTimeout(endIntro, (INTRO_MAX + 3) * 1000);
+        try { v.currentTime = 0; } catch (e) {}
+        var p; try { p = v.play(); } catch (e2) { p = null; }
+        if (p && p.catch) p.catch(function () { fail(); });
+    }
+    function endIntro() {
+        clearTimeout(timer);
+        phase = "page"; window.INTRO_ON = false;
+        v.style.opacity = "0"; v.pause();
+        var b = bg(); if (b) safePlay(b);          // фоновое видео погоды продолжает играть
+        try { showSlide(0); if (window.slideRestart) window.slideRestart(); } catch (e) {}
+        if (!broken) timer = setTimeout(startIntro, PAGE_SECONDS * 1000);
+    }
+    function fail() { endIntro(); try { v.load(); } catch (e) {} }   // видео не загрузилось (нет интернета и т.п.) — этот круг показываем только часы и погоду, в следующий пробуем снова
+
+    // показываем видео только когда пошёл первый кадр — чёрного экрана не будет
+    v.addEventListener("playing", function () {
+        if (phase !== "intro") return;
+        v.style.opacity = "1";
+        var b = bg(); if (b) b.pause();            // чтобы два видео не нагружали плеер
+    });
+    v.addEventListener("ended", function () { if (phase === "intro") endIntro(); });
+    v.addEventListener("error", fail);
+
+    startIntro();
 })();
 </script>
 
