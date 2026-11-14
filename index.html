@@ -1958,7 +1958,7 @@ function updateBigIcon(wcode, isDay) {
     document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
     document.getElementById("bigCond").textContent = condText(wcode, isDay);
 }
-function isDayFromW(w) { return !(w[2] > w[0] && w[1] < 0.35); }
+function isDayFromW(w) { return !(w[2] > 0); }   // w[2] > 0 = солнце уже село (или ещё не взошло) -> луна и «Ясно»
 function render(d, noVideo) {
     d = fakeTime(d);
     LASTD = d;
