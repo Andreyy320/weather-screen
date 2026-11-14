@@ -26,8 +26,7 @@ var ASSET_LIST = [
   'assets/storm_night.mp4',
   'assets/sunny.mp4',
   'assets/yasna_night.mp4',
-  'assets/zakat.mp4',
-  'assets/intro.mp4'
+  'assets/zakat.mp4'
 ].map(function (p) { return new URL(p, self.registration.scope).href; });
 
 var ASSET_RE = /\.(mp4|webm|woff2)$/i;
