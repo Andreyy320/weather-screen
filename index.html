@@ -1716,6 +1716,7 @@ function applyBg(d, noVideo) {
     p.cover = cc[0]; p.dark = cc[1];
     p.day = w[0]; p.dusk = w[1]; p.night = w[2];
     setScene(p);
+    try { updateBigIcon(code, (bgForce && BG_PRESETS[bgForce]) ? BG_PRESETS[bgForce][1] !== "n" : isDayFromW(w)); } catch (e) {}
     if (!noVideo) updateWeatherVideo(code, w);
 }
 
@@ -1948,11 +1949,21 @@ function fakeTime(d) {      /* только для ?time=...: чтобы дан�
     } catch (e) {}
     return d;
 }
+/* иконка и подпись: ночь (луна) только когда включается ночной фон, а не ровно в минуту заката.
+   Пока играет закатный ролик — остаётся солнце. Вызывается из render и раз в минуту из applyBg. */
+function updateBigIcon(wcode, isDay) {
+    var bigIcon = iconFor(wcode, isDay);
+    if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
+    document.getElementById("bigIcUse").setAttribute("href", "#" + bigIcon);
+    document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
+    document.getElementById("bigCond").textContent = condText(wcode, isDay);
+}
+function isDayFromW(w) { return !(w[2] > w[0] && w[1] < 0.35); }
 function render(d, noVideo) {
     d = fakeTime(d);
     LASTD = d;
     var cur = d.current;
-    var isDay = cur.is_day === 1;
+    var isDay = isDayFromW(todWeights(d));
 
     /* ---- слайд 1 ---- */
     var wcode = effCode(cur.weather_code, cur.cloud_cover);
@@ -1960,12 +1971,8 @@ function render(d, noVideo) {
     lastWx = "API: код " + cur.weather_code + ", облачность " + cur.cloud_cover + "%  ->  " + wcode + (wcode === 2 ? (HEAVY ? " (переменная)" : " (местами солнечно)") : "") + "  пороги " + CLOUD_VARIABLE + "/" + CLOUD_OVERCAST;
         if (bgForce && BG_PRESETS[bgForce]) { wcode = BG_PRESETS[bgForce][0]; isDay = BG_PRESETS[bgForce][1] !== "n"; HEAVY = !!BG_PRESETS[bgForce][2]; }
             try { setCardFx(wcode, isDay); } catch (e) {}
-    var bigIcon = iconFor(wcode, isDay);
-    if (bigIcon === "ic-sun") bigIcon = "ic-sunBig";
-    document.getElementById("bigIcUse").setAttribute("href", "#" + bigIcon);
-    document.getElementById("bigIc").className = "abs" + (bigIcon === "ic-sunBig" ? " sun" : "");
-   document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
-document.getElementById("bigCond").textContent = condText(wcode, isDay);
+    updateBigIcon(wcode, isDay);
+document.getElementById("bigTemp").textContent = fmtTemp(cur.temperature_2m);
 document.getElementById("feels1").textContent = "Ощущается как " + fmtTemp(cur.apparent_temperature != null ? cur.apparent_temperature : cur.temperature_2m);
     if (d.daily && d.daily.temperature_2m_min && d.daily.temperature_2m_max) {
         document.getElementById("mmMin").textContent = "Мин. " + fmtTemp(d.daily.temperature_2m_min[0]);
