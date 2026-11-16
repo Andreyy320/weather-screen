@@ -6,7 +6,7 @@
 // (например 'weather-assets-v2'), иначе будет отдаваться старый файл из кэша.
 // Новое видео/шрифт добавил — впиши его в ASSET_LIST ниже (хотя и без этого оно закэшируется при первом показе).
 
-var CACHE  = 'weather-screen-v8';
+var CACHE  = 'weather-screen-v10';
 var ASSETS = 'weather-assets-v4';
 
 var ASSET_LIST = [
@@ -26,7 +26,8 @@ var ASSET_LIST = [
   'assets/storm_night.mp4',
   'assets/sunny.mp4',
   'assets/yasna_night.mp4',
-  'assets/zakat.mp4'
+  'assets/zakat.mp4',
+  'assets/intro.mp4'
 ].map(function (p) { return new URL(p, self.registration.scope).href; });
 
 var ASSET_RE = /\.(mp4|webm|woff2)$/i;
@@ -131,15 +132,14 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET' || u.origin !== location.origin) return;
   if (u.searchParams.has('chk')) return;                       // проверка обновлений — всегда напрямую в сеть
   if (ASSET_RE.test(u.pathname)) { e.respondWith(serveAsset(e)); return; }
-   e.respondWith(
-    caches.match(req).then(function (hit) {
-      var net = fetch(req.url, { cache: 'no-cache' }).then(function (res) {
-        if (res && res.ok) { var c2 = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, c2); }); }
-        return res;
-      });
-      if (hit) { net.catch(function () {}); return hit; }
-      return net.catch(function () {
-        return caches.match('./index.html').then(function (r) {
+  // HTML: СНАЧАЛА СЕТЬ (свежая версия), если сети нет или она тормозит >4 с — копия из кэша
+  e.respondWith(
+    Promise.race([fetch(req.url, { cache: 'no-cache' }), timeout(4000)]).then(function (res) {
+      if (res && res.ok) { var c2 = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, c2); }); }
+      return res;
+    }).catch(function () {
+      return caches.match(req).then(function (hit) {
+        return hit || caches.match('./index.html').then(function (r) {
           return r || new Response('offline', { status: 503 });
         });
       });
