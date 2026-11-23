@@ -67,7 +67,7 @@ window.earlyKnown=known;
    (копия логики pickVideo из основного скрипта: если там меняешь выбор ролика — поправь и здесь). */
 if(lc){
  var cp=lc.split("|"),cd=+cp[0],hv=cp[1]==="1",nt=W[2]>=0.5,dk=W[1]>=0.35,A="assets/";
- var sn=(cd>=71&&cd<=77)||cd===85||cd===86,rn=(cd>=51&&cd<=67)||(cd>=80&&cd<=82),li=(cd===51||cd===53||cd===55||cd===61||cd===80);
+ var sn=(cd>=71&&cd<=77)||cd===85||cd===86||cd===68,rn=(cd>=51&&cd<=67)||(cd>=80&&cd<=82),li=(cd===51||cd===53||cd===55||cd===61||cd===80);
  if(cd>=95)lv=A+(nt?"storm_night":"storm")+".mp4";
  else if(sn)lv=A+"snow.mp4";
  else if(rn&&li){lv=A+"pasmyrno.mp4";lt=true;}
@@ -850,6 +850,30 @@ html.nowx #bigIc, html.nowx #bigTemp, html.nowx #bigCond, html.nowx #feels1 { vi
       </g>
     </symbol>
 
+    <symbol id="ic-sleet" viewBox="0 0 100 100">
+      <use href="#ic-cloudD" width="100" height="100"/>
+      <g stroke="#7fc3ff" stroke-width="4" stroke-linecap="round">
+        <line x1="32" y1="72" x2="28" y2="80">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-4 14" dur=".9s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" repeatCount="indefinite"/>
+        </line>
+        <line x1="62" y1="72" x2="58" y2="80">
+          <animateTransform attributeName="transform" type="translate" values="0 -2;-4 14" dur=".9s" begin="-.45s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.65;1" dur=".9s" begin="-.45s" repeatCount="indefinite"/>
+        </line>
+      </g>
+      <g fill="#fff">
+        <circle cx="47" cy="72" r="3.4">
+          <animateTransform attributeName="transform" type="translate" values="0 0;-4 8;3 15;-1 22" dur="3.4s" begin="-1.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.4s" begin="-1.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="76" cy="72" r="3.4">
+          <animateTransform attributeName="transform" type="translate" values="0 0;4 8;-2 15;2 22" dur="3.6s" begin="-.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.75;1" dur="3.6s" begin="-.6s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+    </symbol>
+
     <symbol id="ic-storm" viewBox="0 0 100 100">
       <use href="#ic-cloudD" width="100" height="100"/>
       <circle cx="52" cy="54" r="36" fill="#cfe0ff" opacity="0">
@@ -1268,7 +1292,7 @@ function wxState(code) {
     else if (code === 45 || code === 48) { p.cc = .5; p.cd = 0; p.gray = .65; p.fog = 1; }
     else if (code >= 51 && code <= 57)   { p.cd = .6; p.gray = .8; p.rain = .55; }
     else if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) { p.cd = 1; p.gray = .9; p.rain = 1; }
-    else if ((code >= 71 && code <= 77) || code === 85 || code === 86) { p.cd = .5; p.gray = .8; p.snow = 1; }
+    else if ((code >= 71 && code <= 77) || code === 85 || code === 86 || code === 68) { p.cd = .5; p.gray = .8; p.snow = 1; }
     else if (code >= 95)  { p.cd = 1; p.gray = 1; p.rain = 1; p.storm = 1; }
     p.cbase = cloudBase(code);
     return p;
@@ -1282,7 +1306,7 @@ function cloudBase(code) {
     if (code === 45 || code === 48) return 800;
     if (code >= 51 && code <= 57) return 300;
     if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return 240;
-    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 420;
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86 || code === 68) return 420;
     if (code >= 95) return 150;
     return 500;
 }
@@ -1309,7 +1333,7 @@ function todWeights(d) {
 }
 
 var BG_PRESETS = {
-    clear: [0, "d"], cloud: [2, "d"], variable: [2, "d", 1], overcast: [3, "d"], rain: [63, "d"], snow: [73, "d"], storm: [95, "d"], fog: [45, "d"],
+    clear: [0, "d"], sleet: [68, "d"], nightsleet: [68, "n"], cloud: [2, "d"], variable: [2, "d", 1], overcast: [3, "d"], rain: [63, "d"], snow: [73, "d"], storm: [95, "d"], fog: [45, "d"],
     mostly: [1, "d"], drizzle: [53, "d"], lightrain: [61, "d"], nightlightrain: [61, "n"], dusk: [1, "s"],
     night: [0, "n"], nightcloud: [2, "n"], nightovercast: [3, "n"], nightfog: [45, "n"],
     nightrain: [63, "n"], nightsnow: [73, "n"], stormnight: [95, "n"]
@@ -1324,7 +1348,7 @@ function cloudFor(code) {
     if (code === 45 || code === 48) return [0.70, 0.25];
     if (code >= 51 && code <= 57) return [0.90, 0.55];
     if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return [1, 0.70];
-    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return [0.95, 0.40];
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86 || code === 68) return [0.95, 0.40];
     if (code >= 95) return [1, 0.90];
     return [0.85, 0.55];
 }
@@ -1677,7 +1701,7 @@ document.addEventListener("visibilitychange", function () { if (!document.hidden
 /* Какой ролик нужен для этой погоды */
 function pickVideo(code, w) {
     var night = w[2] >= 0.5, dusk = w[1] >= 0.35;
-    var snow  = (code >= 71 && code <= 77) || code === 85 || code === 86;
+    var snow  = (code >= 71 && code <= 77) || code === 85 || code === 86 || code === 68;
     var rain  = (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
     var ov = false;
     var light = (code === 51 || code === 53 || code === 55 || code === 61 || code === 80);   // морось / небольшой дождь
@@ -1831,7 +1855,7 @@ var SLOTS = 5;          // сколько ячеек в почасовом пр�
 var DAYS_COUNT =5;     // сколько дней запрашиваем (нужны для восхода/заката и почасового прогноза)
 var REFRESH_OK = 15 * 60 * 1000;
 var REFRESH_FAIL = 60 * 1000;
-var CACHE_KEY = "wx_tiraspol_v7";
+var CACHE_KEY = "wx_tiraspol_v8";
 var CACHE_MAX_AGE = 20 * 60 * 1000;      // кеш старше 20 минут не используем для выбора видео
 var staleCache = null;
 var LASTD = null;                       // последние полученные данные погоды (для пересчёта фона раз в минуту)
@@ -1843,8 +1867,8 @@ var LASTD = null;                       // последние полученны
 var WX_MODEL = "ecmwf_ifs025";
 var URL_API = "https://api.open-meteo.com/v1/forecast"
   + "?latitude=" + LAT + "&longitude=" + LON
-  + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,cloud_cover"
-  + "&hourly=temperature_2m,weather_code,is_day,cloud_cover,precipitation"
+  + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,cloud_cover,precipitation,snowfall,rain,showers"
+  + "&hourly=temperature_2m,weather_code,is_day,cloud_cover,precipitation,precipitation_probability"
   + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum"
   + "&wind_speed_unit=ms&temperature_unit=celsius"
   + "&timezone=" + encodeURIComponent(TZ)
@@ -1877,9 +1901,10 @@ function iconFor(code, isDay) {
     if (code === 2)               return isDay ? "ic-partly" : "ic-partlyN";
  if (code === 3)               return isDay ? "ic-cloud" : "ic-partlyN";
    if (code === 45 || code === 48) return isDay ? "ic-fog" : "ic-fogN";
+    if (code === 68)              return "ic-sleet";
     if (code >= 51 && code <= 57) return "ic-drizzle";
     if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "ic-rain";
-    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "ic-snow";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86 || code === 68) return "ic-snow";
     if (code >= 95)               return "ic-storm";
     return "ic-cloud";
 }
@@ -1896,6 +1921,7 @@ function condText(code, isDay) {
     if (code === 65) return "Сильный дождь";
     if (code >= 61 && code <= 65) return "Дождь";
     if (code >= 80 && code <= 82) return "Ливень";
+    if (code === 68) return "Мокрый снег";
     if (code === 85 || code === 86) return "Снегопад";
     if (code >= 71 && code <= 77) return "Снег";
     if (code >= 95) return "Гроза";
@@ -1986,6 +2012,28 @@ function render(d, noVideo) {
     d = fakeTime(d);
     LASTD = d;
     var cur = d.current;
+    /* если реально идут осадки, а код погоды этого не показал — считаем «небольшой дождь» */
+    try {
+        var wet = (cur.precipitation || 0) >= 0.1;
+        if (!wet && d.hourly && d.hourly.time) {
+            var hi = d.hourly.time.indexOf(cur.time.slice(0, 13) + ":00");
+            if (hi >= 0) {
+                var hp = (d.hourly.precipitation || [])[hi] || 0;
+                var hpr = (d.hourly.precipitation_probability || [])[hi] || 0;
+                if (hp >= 0.1 || (hpr >= 60 && hp >= 0.05)) wet = true;
+            }
+        }
+        var tt = cur.temperature_2m, sf = cur.snowfall || 0, rr = (cur.rain || 0) + (cur.showers || 0);
+        var isRainCode = (cur.weather_code >= 51 && cur.weather_code <= 67) || (cur.weather_code >= 80 && cur.weather_code <= 82);
+        if (wet && cur.weather_code <= 3) {
+            if (sf > 0 && rr > 0) cur.weather_code = 68;       // снег и дождь вместе = мокрый снег
+            else if (sf > 0 || tt <= 0) cur.weather_code = 73; // снег
+            else if (tt <= 2) cur.weather_code = 68;           // около нуля = мокрый снег
+            else cur.weather_code = 61;                        // небольшой дождь
+        } else if (isRainCode && sf > 0) {
+            cur.weather_code = rr > 0 ? 68 : 73;               // сервис сказал «дождь», а выпадает снег
+        }
+    } catch (e) {}
     var isDay = isDayFromW(todWeights(d));
 
     /* ---- слайд 1 ---- */
@@ -2017,13 +2065,14 @@ var MONTHS_SHORT = ["янв","фев","мар","апр","мая","июн","ию�
 function dayIcon(d, dayStr, dailyCode, ensPr, ensHrs, ensCl) {
     var h = d.hourly;
     if (!h || !h.time || !h.weather_code) return iconFor(dailyCode, true);
-    var j, hr, c, pr, wet = 0, mm = 0, snow = 0, storm = 0, fog = 0, cl = 0, cn = 0, hrs = 0;
+    var j, hr, c, pr, ts = 0, tn = 0, wet = 0, mm = 0, snow = 0, storm = 0, fog = 0, cl = 0, cn = 0, hrs = 0;
     var hasPr = !!h.precipitation;
     for (j = 0; j < h.time.length; j++) {
         if (h.time[j].slice(0, 10) !== dayStr) continue;
         hr = +h.time[j].slice(11, 13);
         if (hr < 8 || hr > 21) continue;                 // «дневные» часы 8–21
         hrs++;
+        if (h.temperature_2m && h.temperature_2m[j] != null) { ts += h.temperature_2m[j]; tn++; }
         c = h.weather_code[j];
         pr = (hasPr && h.precipitation[j] != null) ? h.precipitation[j] : null;
         if (c >= 95) storm++;
@@ -2053,6 +2102,26 @@ function dayIcon(d, dayStr, dailyCode, ensPr, ensHrs, ensCl) {
     else if (wet >= 2 || mm >= 0.6) icon = avg < 70 ? "ic-partlyRain" : "ic-drizzle";
     else if (fog >= 4) icon = "ic-fog";
     else icon = iconFor(effCode(3, avg), true);                     // без осадков — по облачности (как на слайде 1)
+    if (icon === "ic-rain" || icon === "ic-drizzle" || icon === "ic-partlyRain") {   // осадки при холоде — снег или мокрый снег
+        /* смотрим ВСЕ 24 часа суток (ночью и утром холоднее, там и бывает мокрый снег), а не только день */
+        var ww = 0, cold = 0, frz = 0, k2, t2, p2;
+        for (k2 = 0; k2 < h.time.length; k2++) {
+            if (h.time[k2].slice(0, 10) !== dayStr) continue;
+            p2 = (hasPr && h.precipitation[k2] != null) ? h.precipitation[k2] : 0;
+            t2 = h.temperature_2m ? h.temperature_2m[k2] : null;
+            if (p2 < 0.1 || t2 === null || t2 === undefined) continue;
+            ww++;
+            if (t2 <= 2.5) cold++;
+            if (t2 <= 0) frz++;
+        }
+        if (ww) {
+            if (frz === ww) icon = "ic-snow";
+            else if (cold >= 2 && cold / ww >= 0.25) icon = "ic-sleet";
+        } else if (tn) {                                  // почасовых осадков нет — по средней дневной температуре
+            var ta = ts / tn;
+            if (ta <= 0) icon = "ic-snow"; else if (ta <= 2.5) icon = "ic-sleet";
+        }
+    }
     try { console.log("[5 дней]", dayStr, "мокрых часов:", wet, "осадки мм:", Math.round(mm * 10) / 10, "ансамбль мм:", ensPr, "часов:", ensHrs, "обл.ансамбль:", ensCl, "облачность %:", Math.round(avg), "->", icon); } catch (e) {}
     return icon;
 }
@@ -2131,8 +2200,8 @@ function renderDays(d) {
         icon = dayIcon(d, dl.time[i], code, ens ? ens.pr[ei] : null, ens ? ens.hr[ei] : null, ens ? ens.cl[ei] : null);
         if (i === 0 && d.current) {
     var ci = iconFor(effCode(d.current.weather_code, d.current.cloud_cover), true);
-    var wetNow = (ci === "ic-rain" || ci === "ic-drizzle" || ci === "ic-snow" || ci === "ic-storm");
-    var wetDay = (icon === "ic-rain" || icon === "ic-drizzle" || icon === "ic-partlyRain" || icon === "ic-snow" || icon === "ic-storm");
+    var wetNow = (ci === "ic-rain" || ci === "ic-drizzle" || ci === "ic-snow" || ci === "ic-sleet" || ci === "ic-storm");
+    var wetDay = (icon === "ic-rain" || icon === "ic-drizzle" || icon === "ic-partlyRain" || icon === "ic-snow" || icon === "ic-sleet" || icon === "ic-storm");
     if (wetNow && !wetDay) icon = ci;
 }
         tmax = (ens && ens.max[ei] != null) ? ens.max[ei] : dl.temperature_2m_max[i];
