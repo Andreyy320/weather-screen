@@ -1887,6 +1887,7 @@ var lastWx = "";
 var CLOUD_VARIABLE = 70;
 var CLOUD_OVERCAST = 90;
 var HEAVY = false;     // true = «переменная облачность» (облаков больше, чем «местами солнечно»)
+var SNOWF = 0;   // сила снега, см/ч (для подписи «слабый / сильный снегопад»)
 function isHeavy(cloud) { return cloud !== undefined && cloud !== null && cloud >= CLOUD_VARIABLE; }
 function effCode(code, cloud) {
     if (code > 3 || cloud === undefined || cloud === null) return code;
@@ -1922,8 +1923,11 @@ function condText(code, isDay) {
     if (code >= 61 && code <= 65) return "Дождь";
     if (code >= 80 && code <= 82) return "Ливень";
     if (code === 68) return "Мокрый снег";
-    if (code === 85 || code === 86) return "Снегопад";
-    if (code >= 71 && code <= 77) return "Снег";
+       if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+        if (SNOWF >= 2) return "Сильный снегопад";
+        if (SNOWF >= 0.5) return "Снегопад";
+        return "Слабый снегопад";
+    }
     if (code >= 95) return "Гроза";
     return "Облачно";
 }
@@ -2012,6 +2016,7 @@ function render(d, noVideo) {
     d = fakeTime(d);
     LASTD = d;
     var cur = d.current;
+        SNOWF = cur.snowfall || 0;
     /* если реально идут осадки, а код погоды этого не показал — считаем «небольшой дождь» */
     try {
         var wet = (cur.precipitation || 0) >= 0.1;
